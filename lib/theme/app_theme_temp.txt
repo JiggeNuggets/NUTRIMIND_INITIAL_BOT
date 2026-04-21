@@ -1,0 +1,8 @@
+﻿  // Additional colors used throughout the app
+  static const Color errorRed = Color(0xFFF44336);
+  static const Color darkGreen = Color(0xFF2E7D32);
+  static const Color lightGreen = Color(0xFF81C784);
+  static const Color orangeAccent = Color(0xFFFF9800);
+  static const Color successGreen = Color(0xFF4CAF50);
+  static const Color warningOrange = Color(0xFFFF9800);
+  static const Color infoBlue = Color(0xFF2196F3);

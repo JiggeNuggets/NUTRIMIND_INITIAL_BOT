@@ -1,0 +1,527 @@
+import 'package:flutter/material.dart';
+
+class AppTheme {
+  AppTheme._();
+
+  // Modern Light Mode Colors - Davao City, Philippines Theme
+  static const Color primaryGreen = Color(0xFF4CAF50);    // Soft Green
+  static const Color secondaryOrange = Color(0xFFFF9800); // Soft Orange
+  static const Color accentGreen = Color(0xFF81C784);     // Light Green
+  static const Color softGreen = Color(0xFFE8F5E8);       // Very Light Green
+  static const Color bgGreen = Color(0xFFF1F8E9);         // Background Green
+
+  // Neutral Colors
+  static const Color white = Color(0xFFFFFFFF);
+  static const Color surface = Color(0xFFFAFAFA);
+  static const Color cardBackground = Color(0xFFFFFFFF);
+
+  // Text Colors
+  static const Color textDark = Color(0xFF212121);
+  static const Color textMid = Color(0xFF757575);
+  static const Color textLight = Color(0xFFBDBDBD);
+  static const Color textHint = Color(0xFF9E9E9E);
+
+  // Status Colors
+  static const Color success = Color(0xFF4CAF50);
+  static const Color warning = Color(0xFFFF9800);
+  static const Color error = Color(0xFFF44336);
+  static const Color info = Color(0xFF2196F3);
+
+  // Border and Dividers
+  static const Color divider = Color(0xFFE0E0E0);
+  static const Color border = Color(0xFFE8E8E8);
+
+  // Spacing Constants (16-20px safe margins)
+  static const double spacingXs = 8.0;
+  static const double spacingSm = 12.0;
+  static const double spacingMd = 16.0;
+  static const double spacingLg = 20.0;
+  static const double spacingXl = 24.0;
+  static const double spacingXxl = 32.0;
+
+  // Border Radius
+  static const double radiusSm = 8.0;
+  static const double radiusMd = 12.0;
+  static const double radiusLg = 16.0;
+  static const double radiusXl = 20.0;
+
+  // Typography Methods (not constants to avoid conflicts)
+  static TextStyle get heading1 => const TextStyle(
+    fontSize: 28,
+    fontWeight: FontWeight.w700,
+    color: textDark,
+    letterSpacing: -0.5,
+  );
+
+  static TextStyle get heading2 => const TextStyle(
+    fontSize: 24,
+    fontWeight: FontWeight.w600,
+    color: textDark,
+    letterSpacing: -0.3,
+  );
+
+  static TextStyle get heading3 => const TextStyle(
+    fontSize: 20,
+    fontWeight: FontWeight.w600,
+    color: textDark,
+    letterSpacing: -0.2,
+  );
+
+  static TextStyle get bodyLarge => const TextStyle(
+    fontSize: 16,
+    fontWeight: FontWeight.w400,
+    color: textDark,
+    height: 1.5,
+  );
+
+  static TextStyle get bodyMedium => const TextStyle(
+    fontSize: 14,
+    fontWeight: FontWeight.w400,
+    color: textMid,
+    height: 1.4,
+  );
+
+  static TextStyle get bodySmall => const TextStyle(
+    fontSize: 12,
+    fontWeight: FontWeight.w400,
+    color: textLight,
+    height: 1.3,
+  );
+
+  static TextStyle get labelLarge => const TextStyle(
+    fontSize: 14,
+    fontWeight: FontWeight.w600,
+    color: textDark,
+  );
+
+  static TextStyle get labelMedium => const TextStyle(
+    fontSize: 12,
+    fontWeight: FontWeight.w600,
+    color: textMid,
+  );
+
+  static TextStyle get labelSmall => const TextStyle(
+    fontSize: 11,
+    fontWeight: FontWeight.w600,
+    color: textLight,
+  );
+
+  static TextStyle get buttonText => const TextStyle(
+    fontSize: 16,
+    fontWeight: FontWeight.w600,
+    color: white,
+  );
+
+  // Theme Data
+  static ThemeData get lightTheme => ThemeData(
+    useMaterial3: true,
+    colorScheme: const ColorScheme.light(
+      primary: primaryGreen,
+      secondary: secondaryOrange,
+      surface: surface,
+      background: white,
+      onPrimary: white,
+      onSecondary: textDark,
+      onSurface: textDark,
+      onBackground: textDark,
+    ),
+    scaffoldBackgroundColor: bgGreen,
+    cardColor: cardBackground,
+    dividerColor: divider,
+
+    // App Bar Theme
+    appBarTheme: const AppBarTheme(
+      backgroundColor: white,
+      foregroundColor: textDark,
+      elevation: 0,
+      centerTitle: true,
+      titleTextStyle: TextStyle(
+        fontSize: 20,
+        fontWeight: FontWeight.w600,
+        color: textDark,
+      ),
+    ),
+
+    // Button Themes
+    elevatedButtonTheme: ElevatedButtonThemeData(
+      style: ElevatedButton.styleFrom(
+        backgroundColor: primaryGreen,
+        foregroundColor: white,
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(radiusMd),
+        ),
+        textStyle: buttonText,
+      ),
+    ),
+
+    outlinedButtonTheme: OutlinedButtonThemeData(
+      style: OutlinedButton.styleFrom(
+        foregroundColor: primaryGreen,
+        side: const BorderSide(color: primaryGreen),
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(radiusMd),
+        ),
+      ),
+    ),
+
+    // Input Decoration
+    inputDecorationTheme: InputDecorationTheme(
+      filled: true,
+      fillColor: white,
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(radiusMd),
+        borderSide: const BorderSide(color: border),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(radiusMd),
+        borderSide: const BorderSide(color: border),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(radiusMd),
+        borderSide: const BorderSide(color: primaryGreen, width: 2),
+      ),
+      labelStyle: const TextStyle(color: textMid),
+      hintStyle: const TextStyle(color: textHint),
+    ),
+
+    // Card Theme
+    cardTheme: CardTheme(
+      color: cardBackground,
+      elevation: 2,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(radiusLg),
+      ),
+      margin: const EdgeInsets.all(spacingMd),
+    ),
+
+    // Philippines Localization
+    textTheme: const TextTheme(
+      displayLarge: TextStyle(fontSize: 28, fontWeight: FontWeight.w700, color: textDark),
+      displayMedium: TextStyle(fontSize: 24, fontWeight: FontWeight.w600, color: textDark),
+      displaySmall: TextStyle(fontSize: 20, fontWeight: FontWeight.w600, color: textDark),
+      headlineLarge: TextStyle(fontSize: 20, fontWeight: FontWeight.w600, color: textDark),
+      headlineMedium: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: textDark),
+      headlineSmall: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: textDark),
+      titleLarge: TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: textDark),
+      titleMedium: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: textMid),
+      titleSmall: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: textMid),
+      bodyLarge: TextStyle(fontSize: 16, fontWeight: FontWeight.w400, color: textDark),
+      bodyMedium: TextStyle(fontSize: 14, fontWeight: FontWeight.w400, color: textMid),
+      bodySmall: TextStyle(fontSize: 12, fontWeight: FontWeight.w400, color: textLight),
+      labelLarge: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: textDark),
+      labelMedium: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: textMid),
+      labelSmall: TextStyle(fontSize: 11, fontWeight: FontWeight.w500, color: textLight),
+    ),
+  );
+
+  // Currency and Location
+  static const String currency = '₱';
+  static const String location = 'Davao City, Philippines';
+}
+
+  static ThemeData get lightTheme {
+    return ThemeData(
+      useMaterial3: true,
+      brightness: Brightness.light,
+      colorScheme: ColorScheme.fromSeed(
+        seedColor: primaryGreen,
+        brightness: Brightness.light,
+        primary: primaryGreen,
+        secondary: secondaryOrange,
+        surface: surface,
+        background: white,
+        error: error,
+        onPrimary: white,
+        onSecondary: white,
+        onSurface: textDark,
+        onBackground: textDark,
+        onError: white,
+      ),
+
+      // Scaffold and Background
+      scaffoldBackgroundColor: white,
+      canvasColor: white,
+
+      // App Bar
+      appBarTheme: AppBarTheme(
+        backgroundColor: white,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        shadowColor: Colors.transparent,
+        surfaceTintColor: Colors.transparent,
+        iconTheme: const IconThemeData(color: textDark, size: 24),
+        titleTextStyle: heading3.copyWith(color: textDark),
+        toolbarHeight: 56,
+        centerTitle: false,
+      ),
+
+      // Bottom Navigation Bar
+      bottomNavigationBarTheme: const BottomNavigationBarThemeData(
+        backgroundColor: white,
+        elevation: 8,
+        selectedItemColor: primaryGreen,
+        unselectedItemColor: textLight,
+        selectedLabelStyle: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+        unselectedLabelStyle: TextStyle(fontSize: 12, fontWeight: FontWeight.w400),
+        type: BottomNavigationBarType.fixed,
+        showSelectedLabels: true,
+        showUnselectedLabels: true,
+      ),
+
+      // Elevated Button
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: primaryGreen,
+          foregroundColor: white,
+          minimumSize: const Size(double.infinity, 48), // Minimum 44px height
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(radiusMd)),
+          textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, letterSpacing: 0.5),
+          elevation: 0,
+          shadowColor: Colors.transparent,
+          padding: const EdgeInsets.symmetric(horizontal: spacingMd, vertical: spacingSm),
+        ),
+      ),
+
+      // Outlined Button
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: primaryGreen,
+          side: const BorderSide(color: primaryGreen, width: 1.5),
+          minimumSize: const Size(double.infinity, 48),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(radiusMd)),
+          textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+          padding: const EdgeInsets.symmetric(horizontal: spacingMd, vertical: spacingSm),
+        ),
+      ),
+
+      // Text Button
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          foregroundColor: primaryGreen,
+          minimumSize: const Size(44, 44),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(radiusMd)),
+          textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+          padding: const EdgeInsets.symmetric(horizontal: spacingMd, vertical: spacingSm),
+        ),
+      ),
+
+      // Input Decoration
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: surface,
+        contentPadding: const EdgeInsets.symmetric(horizontal: spacingMd, vertical: spacingMd),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(radiusMd),
+          borderSide: const BorderSide(color: border, width: 1),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(radiusMd),
+          borderSide: const BorderSide(color: border, width: 1),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(radiusMd),
+          borderSide: const BorderSide(color: primaryGreen, width: 2),
+        ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(radiusMd),
+          borderSide: const BorderSide(color: error, width: 1),
+        ),
+        focusedErrorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(radiusMd),
+          borderSide: const BorderSide(color: error, width: 2),
+        ),
+        labelStyle: bodyMedium.copyWith(color: textMid),
+        hintStyle: bodyMedium.copyWith(color: textHint),
+        errorStyle: bodySmall.copyWith(color: error),
+        floatingLabelStyle: bodyMedium.copyWith(color: primaryGreen),
+        helperStyle: bodySmall.copyWith(color: textLight),
+      ),
+
+      // Card Theme
+      cardTheme: CardTheme(
+        color: cardBackground,
+        elevation: 0,
+        shadowColor: Colors.transparent,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(radiusLg)),
+        margin: EdgeInsets.zero,
+      ),
+
+      // Floating Action Button
+      floatingActionButtonTheme: const FloatingActionButtonThemeData(
+        backgroundColor: primaryGreen,
+        foregroundColor: white,
+        elevation: 4,
+        shape: CircleBorder(),
+        sizeConstraints: BoxConstraints.tightFor(width: 56, height: 56),
+      ),
+
+      // Dialog Theme
+      dialogTheme: DialogTheme(
+        backgroundColor: white,
+        elevation: 8,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(radiusLg)),
+        titleTextStyle: heading3,
+        contentTextStyle: bodyMedium,
+      ),
+
+      // Bottom Sheet Theme
+      bottomSheetTheme: const BottomSheetThemeData(
+        backgroundColor: white,
+        elevation: 8,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+      ),
+
+      // SnackBar Theme
+      snackBarTheme: SnackBarThemeData(
+        backgroundColor: textDark,
+        contentTextStyle: bodyMedium.copyWith(color: white),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(radiusMd)),
+        behavior: SnackBarBehavior.floating,
+        elevation: 4,
+      ),
+
+      // Chip Theme
+      chipTheme: ChipThemeData(
+        backgroundColor: softGreen,
+        selectedColor: primaryGreen,
+        checkmarkColor: white,
+        deleteIconColor: textMid,
+        labelStyle: labelMedium,
+        secondaryLabelStyle: labelMedium.copyWith(color: white),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(radiusXl)),
+        side: BorderSide.none,
+        padding: const EdgeInsets.symmetric(horizontal: spacingSm, vertical: spacingXs),
+      ),
+
+      // Tab Bar Theme
+      tabBarTheme: TabBarTheme(
+        labelColor: primaryGreen,
+        unselectedLabelColor: textMid,
+        labelStyle: labelLarge,
+        unselectedLabelStyle: labelMedium,
+        indicatorColor: primaryGreen,
+        indicatorSize: TabBarIndicatorSize.tab,
+        dividerColor: divider,
+      ),
+
+      // Divider Theme
+      dividerTheme: const DividerThemeData(
+        color: divider,
+        thickness: 1,
+        space: 1,
+      ),
+
+      // Icon Theme
+      iconTheme: const IconThemeData(
+        color: textDark,
+        size: 24,
+      ),
+
+      // Primary Icon Theme
+      primaryIconTheme: const IconThemeData(
+        color: white,
+        size: 24,
+      ),
+
+      // Typography
+      textTheme: TextTheme(
+        displayLarge: heading1,
+        displayMedium: heading2,
+        displaySmall: heading3,
+        headlineLarge: heading2,
+        headlineMedium: heading3,
+        headlineSmall: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: textDark),
+        titleLarge: heading3,
+        titleMedium: const TextStyle(fontSize: 18, fontWeight: FontWeight.w500, color: textDark),
+        titleSmall: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: textDark),
+        bodyLarge: bodyLarge,
+        bodyMedium: bodyMedium,
+        bodySmall: bodySmall,
+        labelLarge: labelLarge,
+        labelMedium: labelMedium,
+        labelSmall: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500, color: textMid),
+      ),
+
+      // Material 3 specific
+      navigationBarTheme: NavigationBarThemeData(
+        backgroundColor: white,
+        elevation: 0,
+        shadowColor: Colors.transparent,
+        surfaceTintColor: Colors.transparent,
+        indicatorColor: softGreen,
+        labelTextStyle: MaterialStateProperty.resolveWith((states) {
+          if (states.contains(MaterialState.selected)) {
+            return labelMedium.copyWith(color: primaryGreen, fontWeight: FontWeight.w600);
+          }
+          return labelMedium.copyWith(color: textLight);
+        }),
+        iconTheme: MaterialStateProperty.resolveWith((states) {
+          if (states.contains(MaterialState.selected)) {
+            return const IconThemeData(color: primaryGreen, size: 24);
+          }
+          return const IconThemeData(color: textLight, size: 24);
+        }),
+      ),
+    );
+  }
+
+  // Utility methods for consistent spacing
+  static EdgeInsets get paddingXs => const EdgeInsets.all(spacingXs);
+  static EdgeInsets get paddingSm => const EdgeInsets.all(spacingSm);
+  static EdgeInsets get paddingMd => const EdgeInsets.all(spacingMd);
+  static EdgeInsets get paddingLg => const EdgeInsets.all(spacingLg);
+  static EdgeInsets get paddingXl => const EdgeInsets.all(spacingXxl);
+
+  static EdgeInsets get paddingHorizontalMd => const EdgeInsets.symmetric(horizontal: spacingMd);
+  static EdgeInsets get paddingVerticalMd => const EdgeInsets.symmetric(vertical: spacingMd);
+
+  static EdgeInsets get marginMd => const EdgeInsets.all(spacingMd);
+  static EdgeInsets get marginHorizontalMd => const EdgeInsets.symmetric(horizontal: spacingMd);
+  static EdgeInsets get marginVerticalMd => const EdgeInsets.symmetric(vertical: spacingMd);
+
+  // Philippines/Davao City specific constants
+  static const String currency = '₱';
+  static const String location = 'Davao City, Philippines';
+  static const String currencyName = 'PHP';
+
+  // Local food preferences
+  static const List<String> localFoods = [
+    'tuna', 'bangus', 'malunggay', 'calamansi', 'buko',
+    'mango', 'durian', 'jackfruit', 'langka', 'saging',
+    'kamote', 'kalabasa', 'sitaw', 'talong', 'ampalaya'
+  ];
+}
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: divider),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: divider),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: primaryGreen, width: 1.5),
+        ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: errorRed),
+        ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        hintStyle: const TextStyle(color: textLight, fontSize: 14),
+      ),
+      cardTheme: CardThemeData(
+        color: white,
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: const BorderSide(color: Color(0xFFEEF2F0), width: 1),
+        ),
+      ),
+    );
+  }
+}
