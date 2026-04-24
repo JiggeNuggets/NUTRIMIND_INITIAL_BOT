@@ -1,0 +1,198 @@
+{
+  "dataset": "datahiveai/recipes-with-nutrition",
+  "split": "train",
+  "sampling": {
+    "requested_sample_size": 1000,
+    "exported_sample_size": 1000,
+    "seed": 42,
+    "strategy": "Deterministic hash sort by sha256(f'{seed}:{recipe_id}') after cleaning and deduplication."
+  },
+  "row_counts": {
+    "original": 39447,
+    "cleaned": 39445,
+    "exported": 1000
+  },
+  "output_dir": "backend/data/recipes_sample",
+  "output_files": {
+    "json": "recipes_sample.json",
+    "csv": "recipes_sample.csv",
+    "schema": "schema.json"
+  },
+  "field_order": [
+    "recipe_id",
+    "recipe_name",
+    "ingredient_lines",
+    "ingredients",
+    "total_nutrients",
+    "total_daily",
+    "calories",
+    "cuisine_type",
+    "meal_type",
+    "dish_type",
+    "diet_labels",
+    "health_labels",
+    "servings",
+    "source",
+    "url",
+    "image",
+    "total_weight_g",
+    "cautions",
+    "digest"
+  ],
+  "fields": [
+    {
+      "name": "recipe_id",
+      "observed_types": [
+        "string"
+      ],
+      "nullable": false,
+      "present_in_rows": 1000
+    },
+    {
+      "name": "recipe_name",
+      "observed_types": [
+        "string"
+      ],
+      "nullable": false,
+      "present_in_rows": 1000
+    },
+    {
+      "name": "ingredient_lines",
+      "observed_types": [
+        "array"
+      ],
+      "nullable": false,
+      "present_in_rows": 1000
+    },
+    {
+      "name": "ingredients",
+      "observed_types": [
+        "array"
+      ],
+      "nullable": false,
+      "present_in_rows": 1000
+    },
+    {
+      "name": "total_nutrients",
+      "observed_types": [
+        "object"
+      ],
+      "nullable": false,
+      "present_in_rows": 1000
+    },
+    {
+      "name": "total_daily",
+      "observed_types": [
+        "object"
+      ],
+      "nullable": false,
+      "present_in_rows": 1000
+    },
+    {
+      "name": "calories",
+      "observed_types": [
+        "number",
+        "integer"
+      ],
+      "nullable": false,
+      "present_in_rows": 1000
+    },
+    {
+      "name": "cuisine_type",
+      "observed_types": [
+        "array"
+      ],
+      "nullable": false,
+      "present_in_rows": 1000
+    },
+    {
+      "name": "meal_type",
+      "observed_types": [
+        "array"
+      ],
+      "nullable": false,
+      "present_in_rows": 1000
+    },
+    {
+      "name": "dish_type",
+      "observed_types": [
+        "array"
+      ],
+      "nullable": false,
+      "present_in_rows": 1000
+    },
+    {
+      "name": "diet_labels",
+      "observed_types": [
+        "array"
+      ],
+      "nullable": true,
+      "present_in_rows": 844
+    },
+    {
+      "name": "health_labels",
+      "observed_types": [
+        "array"
+      ],
+      "nullable": true,
+      "present_in_rows": 997
+    },
+    {
+      "name": "servings",
+      "observed_types": [
+        "integer"
+      ],
+      "nullable": false,
+      "present_in_rows": 1000
+    },
+    {
+      "name": "source",
+      "observed_types": [
+        "string"
+      ],
+      "nullable": false,
+      "present_in_rows": 1000
+    },
+    {
+      "name": "url",
+      "observed_types": [
+        "string"
+      ],
+      "nullable": false,
+      "present_in_rows": 1000
+    },
+    {
+      "name": "image",
+      "observed_types": [
+        "string"
+      ],
+      "nullable": true,
+      "present_in_rows": 994
+    },
+    {
+      "name": "total_weight_g",
+      "observed_types": [
+        "number",
+        "integer"
+      ],
+      "nullable": false,
+      "present_in_rows": 1000
+    },
+    {
+      "name": "cautions",
+      "observed_types": [
+        "array"
+      ],
+      "nullable": true,
+      "present_in_rows": 832
+    },
+    {
+      "name": "digest",
+      "observed_types": [
+        "array"
+      ],
+      "nullable": false,
+      "present_in_rows": 1000
+    }
+  ]
+}
