@@ -50,9 +50,9 @@ class _CommunityScreenState extends State<CommunityScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: ModernAppTheme.backgroundNeutral,
+      backgroundColor: ModernAppTheme.bgGreen,
       appBar: AppBar(
-        backgroundColor: ModernAppTheme.backgroundNeutral,
+        backgroundColor: ModernAppTheme.bgGreen,
         surfaceTintColor: Colors.transparent,
         title: const Text('Community'),
         actions: const [NotificationBell()],
@@ -105,7 +105,7 @@ class _PostsFeed extends StatelessWidget {
 
     if (community.loading) {
       return ListView(
-        padding: const EdgeInsets.fromLTRB(20, 8, 20, 190),
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 190),
         children: const [
           _ComposerCard(),
           SizedBox(height: 40),
@@ -116,7 +116,7 @@ class _PostsFeed extends StatelessWidget {
 
     if (community.error != null && posts.isEmpty) {
       return ListView(
-        padding: const EdgeInsets.fromLTRB(20, 8, 20, 190),
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 190),
         children: [
           const _ComposerCard(),
           const SizedBox(height: 40),
@@ -130,7 +130,7 @@ class _PostsFeed extends StatelessWidget {
 
     if (posts.isEmpty) {
       return ListView(
-        padding: const EdgeInsets.fromLTRB(20, 8, 20, 190),
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 190),
         children: [
           const _ComposerCard(),
           const SizedBox(height: 40),
@@ -144,7 +144,7 @@ class _PostsFeed extends StatelessWidget {
     }
 
     return ListView.separated(
-      padding: const EdgeInsets.fromLTRB(20, 8, 20, 190),
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 190),
       itemCount: posts.length + 1,
       separatorBuilder: (_, __) => const SizedBox(height: 14),
       itemBuilder: (_, i) {

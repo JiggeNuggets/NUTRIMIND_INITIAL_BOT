@@ -2,7 +2,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:uuid/uuid.dart';
 import '../models/user_model.dart';
 import '../models/meal_model.dart';
+import '../models/pantry_item_model.dart';
 import '../models/post_model.dart';
+import '../models/scanned_item_model.dart';
 import '../models/notification_model.dart';
 import '../models/report_model.dart';
 import '../models/weekly_stats_model.dart';
@@ -18,6 +20,10 @@ class FirestoreService {
   CollectionReference get _posts => _db.collection('posts');
   CollectionReference _meals(String uid) =>
       _db.collection('users').doc(uid).collection('meals');
+  CollectionReference _pantryItems(String uid) =>
+      _db.collection('users').doc(uid).collection('pantry_items');
+  CollectionReference _scannedItems(String uid) =>
+      _db.collection('users').doc(uid).collection('scanned_items');
   CollectionReference _notifications(String uid) =>
       _db.collection('users').doc(uid).collection('notifications');
   CollectionReference _followers(String uid) =>
@@ -214,6 +220,118 @@ class FirestoreService {
   Future<void> updateMeal(
       String uid, String mealId, Map<String, dynamic> data) async {
     await _meals(uid).doc(mealId).update(data);
+  }
+
+  // Pantry
+
+  Stream<List<PantryItemModel>> pantryItemsStream(String uid) {
+    return _pantryItems(uid)
+        .orderBy('updatedAt', descending: true)
+        .snapshots()
+        .map((snapshot) => snapshot.docs
+            .map(PantryItemModel.fromDoc)
+            .where((item) => item.name.trim().isNotEmpty)
+            .toList());
+  }
+
+  Future<String> addPantryItem({
+    required String uid,
+    required String name,
+    required double quantity,
+    required String unit,
+    required String category,
+    required bool isPalengkeItem,
+  }) async {
+    final id = _uuid.v4();
+    final now = DateTime.now();
+    final item = PantryItemModel(
+      id: id,
+      name: name.trim(),
+      quantity: quantity,
+      unit: unit,
+      category: category,
+      source: 'manual',
+      isPalengkeItem: isPalengkeItem,
+      createdAt: now,
+      updatedAt: now,
+    );
+    await _pantryItems(uid).doc(id).set(item.toMap());
+    return id;
+  }
+
+  Future<void> updatePantryItem({
+    required String uid,
+    required String itemId,
+    required String name,
+    required double quantity,
+    required String unit,
+    required String category,
+    required bool isPalengkeItem,
+  }) async {
+    await _pantryItems(uid).doc(itemId).update({
+      'name': name.trim(),
+      'quantity': quantity,
+      'unit': unit,
+      'category': category,
+      'source': 'manual',
+      'isPalengkeItem': isPalengkeItem,
+      'updatedAt': Timestamp.fromDate(DateTime.now()),
+    });
+  }
+
+  Future<void> deletePantryItem(String uid, String itemId) async {
+    await _pantryItems(uid).doc(itemId).delete();
+  }
+
+  // Scanned item history
+
+  Stream<List<ScannedItemModel>> listenToScannedItems(String uid) {
+    return _scannedItems(uid)
+        .orderBy('createdAt', descending: true)
+        .limit(100)
+        .snapshots()
+        .map((snapshot) => snapshot.docs
+            .map(ScannedItemModel.fromDoc)
+            .where((item) =>
+                item.name.trim().isNotEmpty &&
+                item.calories > 0 &&
+                item.price > 0)
+            .toList());
+  }
+
+  Future<String> addScannedItem({
+    required String uid,
+    required String name,
+    required int calories,
+    required double price,
+    required String mealType,
+    String? imageUrl,
+    double? confidence,
+  }) async {
+    if (name.trim().isEmpty || calories <= 0 || price <= 0) {
+      throw ArgumentError('Scanned items require name, calories, and price.');
+    }
+
+    final id = _uuid.v4();
+    final now = DateTime.now();
+    final item = ScannedItemModel(
+      id: id,
+      name: name.trim(),
+      calories: calories,
+      price: price,
+      mealType: mealType,
+      imageUrl: imageUrl,
+      source: 'scanner',
+      confidence: confidence,
+      createdAt: now,
+      updatedAt: now,
+    );
+    await _scannedItems(uid).doc(id).set(item.toMap());
+    return id;
+  }
+
+  Future<void> deleteScannedItem(String uid, String scanId) async {
+    await _scannedItems(uid).doc(scanId).delete();
   }
 
   // ─── POSTS ──────────────────────────────────────

@@ -12,7 +12,7 @@ import '../../widgets/notification_bell.dart';
 import '../../widgets/nutribot/nutribot_launcher.dart';
 import '../../widgets/state_views.dart';
 import 'ai_meal_planner_screen.dart';
-import 'food_scanner_screen.dart';
+import 'scan_options_screen.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -230,7 +230,7 @@ class HomeScreen extends StatelessWidget {
         color: ModernAppTheme.primaryGreen,
         onTap: () => Navigator.of(context).push(
               MaterialPageRoute<void>(
-                builder: (_) => const FoodScannerScreen(),
+                builder: (_) => const ScanOptionsScreen(),
               ),
             ),
       ),

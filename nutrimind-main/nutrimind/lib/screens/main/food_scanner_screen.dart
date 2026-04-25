@@ -11,6 +11,7 @@ import '../../models/nutribot_models.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/meal_provider.dart';
 import '../../providers/notification_provider.dart';
+import '../../services/firestore_service.dart';
 import '../../services/groq_meal_narrative_service.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/modern_app_theme.dart';
@@ -80,7 +81,9 @@ class _FoodAnalysis {
 }
 
 class FoodScannerScreen extends StatefulWidget {
-  const FoodScannerScreen({super.key});
+  const FoodScannerScreen({super.key, this.openManualLogOnStart = false});
+
+  final bool openManualLogOnStart;
 
   @override
   State<FoodScannerScreen> createState() => _FoodScannerScreenState();
@@ -88,6 +91,7 @@ class FoodScannerScreen extends StatefulWidget {
 
 class _FoodScannerScreenState extends State<FoodScannerScreen> {
   final ImagePicker _picker = ImagePicker();
+  final FirestoreService _firestore = FirestoreService();
   late final GroqMealNarrativeService _groq;
 
   CameraController? _cameraController;
@@ -107,6 +111,11 @@ class _FoodScannerScreenState extends State<FoodScannerScreen> {
     super.initState();
     _groq = GroqMealNarrativeService();
     _initializeCamera();
+    if (widget.openManualLogOnStart) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _openManualLog();
+      });
+    }
   }
 
   @override
@@ -506,6 +515,18 @@ class _FoodScannerScreenState extends State<FoodScannerScreen> {
         dailyBudget: user?.dailyBudget ?? 150,
         isScannedMeal: true,
       );
+      var historySaved = true;
+      try {
+        await _firestore.addScannedItem(
+          uid: uid,
+          name: input.name,
+          calories: input.calories,
+          price: input.price,
+          mealType: input.mealType.name,
+        );
+      } catch (_) {
+        historySaved = false;
+      }
       await notifications.createBudgetWarningIfNeeded(
         uid: uid,
         meals: mealProvider.meals,
@@ -514,7 +535,11 @@ class _FoodScannerScreenState extends State<FoodScannerScreen> {
       );
       if (!mounted) return;
       if (closeReviewSheet) Navigator.of(context).pop();
-      _showSnack('Saved to Meal Log.');
+      _showSnack(
+        historySaved
+            ? 'Saved to Meal Log and Scan History.'
+            : 'Saved to Meal Log. Scan History did not sync.',
+      );
       Navigator.of(context).pop();
     } catch (e) {
       _showSnack('Could not save meal. Please try again.');

@@ -47,19 +47,23 @@ Product direction:
 - Firebase startup, `MaterialApp`, `ModernAppTheme`, and root Provider setup are implemented in `main.dart`.
 - Authentication is backed by Firebase Auth and Firestore user documents: splash/auth gate, login, register, Google sign-in, password reset, and user document creation.
 - User profile setup saves goal and confirmed biometric data such as gender, height, weight, and age; planner-specific generation requires completed profile and configured budget flags.
-- Main shell navigation exists with Home, Meal Log, Community, Profile, and a center Food Scanner action.
+- Main shell navigation exists with Home, Meal Log, Community, Profile, and a center Food Input Hub action.
 - Home dashboard reads real user and Meal Log state through providers; today's Meal Log section includes loading, empty, and error UI.
 - Home local food recommendations read from Firestore `local_foods` with loading, empty, and error UI instead of static cards.
+- Home AI Plan budget copy uses the signed-in user's `dailyBudget`.
 - Meal Log is Firestore-backed under `users/{uid}/meals`; it starts empty for new users and supports selected-date loading, manual/scanned/planned/recipe entries, deletion, and saved generated recipes/cooking steps.
-- AI Meal Planner computes BMR targets only after required profile/budget fields are complete, uses budget constraints, consumes labeled prototype local Davao food candidates, generates AI narratives, and can save selected baskets into Meal Log.
-- Food Scanner supports camera preview, gallery fallback, Groq vision analysis, parser output, manual entry, and save-to-Meal-Log; missing/low-confidence scanner fields require review before saving.
-- NutriBot has a reusable `NutriBotPanel`, `NutriBotController`, context prompts, fixed input, Groq-backed chat, and local fallback responses.
+- Scan Options / Food Input Hub lets users choose Scan Meal, Add Pantry Item, Barcode Scan placeholder, or Manual Meal Log instead of sending every center-button tap to one scanner flow.
+- Food Scanner supports camera preview, gallery fallback, Groq vision analysis, parser output, manual entry, and save-to-Meal-Log; missing, generic, or low-confidence scanner fields require review before saving.
+- Pantry items are Firestore-backed under `users/{uid}/pantry_items`; users can add, edit, delete, and list manual pantry/palengke items with loading, empty, and error states.
+- NutriBot has a reusable `NutriBotPanel`, `NutriBotController`, context prompts, fixed input, Groq-backed chat, and safe local fallback responses.
 - NutriBot entry points exist for Home, Meal Log, AI Meal Planner, Food Scanner, Community post flows, Profile, and Recipe Browser.
-- Community posts are Firestore-backed in the current `posts` collection; the feature supports categories, feed loading, create post, image upload, detail view, comments, likes, delete controls, author profile navigation, follow/unfollow, and notifications.
+- Community posts are Firestore-backed in the current `posts` collection; the feature supports categories, feed loading, create Community post, image upload, detail view, comments, delete controls, author profile navigation, follow/unfollow, and notifications.
+- Community likes use `posts/{postId}/likes/{uid}` with an aggregate `likeCount`; legacy `likes[]` data is kept only for compatibility/migration fallback.
 - Community post reporting exists through `posts/{postId}/reports/{reporterId}` and posts can move to `underReview` after the report threshold.
 - Notifications are Firestore-backed under `users/{uid}/notifications`; unread counts, mark read/all read, delete, community notifications, and Meal Planner reminder records exist.
 - Profile screen uses real user data for profile details, BMI, budget/buffer/local settings, Firestore-backed badges, and Firestore-backed weekly ranking stats.
-- Engagement activity writes weekly stats and badges under `users/{uid}/weeklyStats` and `users/{uid}/badges`.
+- Engagement activity writes weekly stats and badges under `users/{uid}/weeklyStats` and `users/{uid}/badges` from real app actions.
+- Weekly Grocery / Palengke List generates from saved Meal Log ingredients and persists weekly list items plus bought state under `users/{uid}/weekly_palengke_lists`.
 - Firebase Storage uploads exist for profile images and Community post images.
 - `state_views.dart` provides reusable loading, empty, error, and offline-aware UI components (`LoadingStateView`, `EmptyStateView`, `ErrorStateView`, `InlineErrorStateCard`) with an `isOfflineError` heuristic that detects `SocketException`, Firestore `unavailable`/`network-request-failed`/`deadline-exceeded`, and common web/network failure strings.
 - Home, Meal Log, Community feed, Profile badges, Profile weekly ranking, and Notifications all render on-screen loading/empty/error states with retry buttons using the shared components. Retry reruns the underlying Firestore listener or stream subscription.
@@ -68,17 +72,19 @@ Product direction:
 
 ## 4. Partially Finished Features
 
-- Home local food data source: UI now reads Firestore `local_foods`, but the collection still needs verified production records and market-price governance.
+- AI Meal Planner / DSS: profile and budget validation is real, BMR/budget computation works, and selected baskets can be saved to Meal Log. It is still partial because local Davao foods, prices, macros, and calorie fallback rows are prototype estimates, not verified production data.
+- Home local food data source: UI reads Firestore `local_foods`, but the collection still needs sourced, verified production records and market-price governance.
 - Weekly plan history: static template generation was removed; a dedicated `meal_plans` collection/history flow still needs to be added if weekly plans should persist separately from Meal Log entries.
-- Weekly Grocery & Palengke List: generated from saved Meal Log ingredients, persists bought state to Firestore, and can use Firestore market config; verified production market data still needs to be populated.
+- Weekly Grocery / Palengke List: generated from saved Meal Log ingredients, persists bought state to Firestore, and can use Firestore market config. It is still partial because fallback aliases, prices, and categories remain prototype estimates until verified `market_prices` / `local_foods` records are complete.
 - Notifications: Firestore in-app records work, but push notifications and scheduled local notifications are not implemented.
-- Badges and weekly ranking: backed by real activity counters; badge definitions, points, thresholds, and ranking rules are centralized as app-config product rules.
-- Scanner/Pantry: scanner can save reviewed results to Meal Log, but pantry persistence, scanned item history, edit/delete pantry flows, and barcode flow are missing.
-- Recipe Browser: UI/service path exists and sample/prototype data is disclosed, but production backend hosting and verified recipe data are not wired.
-- Async states: reusable state components are now applied to Home, Meal Log, Community, Profile (badges + weekly ranking), and Notifications. Still missing on: NutriBot panel (chat error is inline-only, no retry affordance), Recipe Browser detail flows, Weekly Palengke List (uses its own variant), Edit Profile, Generated Recipe screen, create-post submit failures, and other modal/detail flows.
-- NutriBot actions: context-aware chat works. The old "Apply" button has been renamed to "Use Suggestion" and is now explicitly Advice-Only — it sends a chat prompt, the bot replies as text, and nothing is written to Firestore or feature state. A disclaimer ("NutriBot gives advice only. It will not change your meal plan, meal log, or post.") is visible under the Suggestion card, and the system prompt forbids the bot from claiming it applied/updated/saved anything. A future Level-3 Apply-to-feature-state workflow is not implemented yet.
-- Community post likes: implemented as an array on the Community post document; needs a scalable likes subcollection.
-- Community moderation: report storage exists, but there is no admin/moderator review queue.
+- Badges and weekly ranking: backed by real activity counters, but badge definitions, points, thresholds, and ranking rules are app-config product rules rather than Firestore/Remote Config.
+- Scanner/Pantry: scanner can save reviewed results to Meal Log, confirmed scans persist to `users/{uid}/scanned_items`, and manual pantry items persist to Firestore. It is still partial because scan image upload/image URL, confidence mapping, pantry-to-planner usage, and packaged-item barcode flow are missing.
+- Meal Swap: Meal Log meals have a confirmed Swap flow with Cheaper, Higher Protein, and Lower Calorie alternatives from the existing planner food dataset. It is still partial because swap alternatives use prototype local prices/macros and do not yet update an unsaved AI Planner selected plan.
+- Recipe Browser: UI/service path exists and sample/prototype data is disclosed, but production backend hosting, verified recipe data, and complete price/macro mapping are not wired.
+- Async states: reusable state components are applied to Home, Meal Log, Community, Profile (badges + weekly ranking), and Notifications. Still missing on NutriBot retry, Recipe Browser detail flows, Edit Profile, Generated Recipe screen, create-post submit failures, and other modal/detail flows.
+- NutriBot Apply actions: context-aware chat works, but Apply-to-feature-state is not implemented. The current "Use Suggestion" path is advice-only and does not write to Firestore or feature state.
+- Community moderation: report storage and `underReview` status exist, but there is no admin/moderator review queue.
+- Legacy data cleanup: Community uses the current `posts` collection, not `community_posts`; legacy `likes[]` may still exist on older documents for migration compatibility.
 
 ---
 
@@ -86,25 +92,37 @@ Product direction:
 
 ### Data Layer
 
-- Continue replacing remaining hardcoded production data and fallbacks with Firestore, backend, or verified local datasets.
-- Populate verified Weekly Grocery / Palengke List market config and compare estimated total cost with user budget.
-- Add dedicated `pantry_items` and `scanned_items` storage for Scanner/Pantry history.
-- Replace prototype Davao/local food prices, macros, serving sizes, and ingredient assumptions with verified Firestore/backend records before relying on them for production recommendations.
+- Populate verified `local_foods` and `market_prices` records with source, source type, verification date, serving size, macros, and active/status flags.
+- Replace prototype Davao/local food prices, macros, serving sizes, and ingredient assumptions before relying on them for production recommendations.
+- Back Meal Swap alternatives with verified `local_foods` / `market_prices` records before treating swap recommendations as production nutrition or price guidance.
 - Replace prototype recipe assets and backend sample recipe files with verified, licensed recipe/nutrition data before production release.
-- Move engagement product rules from app config to Firestore/Remote Config if points, badges, milestones, or ranking policy need runtime updates.
+- Replace Palengke fallback alias, price, and category maps with verified Firestore/backend market config.
+- Add scan image upload/image URL, confidence mapping, and optional reuse-to-log flow for Scan History; connect pantry items to planning where appropriate.
+- Add a dedicated `meal_plans` collection/history flow if generated weekly plans must be revisited separately from saved Meal Log entries.
+- Harden non-planner profile/default fallbacks so missing user fields do not silently look like confirmed profile data.
 - Add a clear migration path from `posts` to `community_posts` if the collection is renamed.
+
+### Backend / Config
+
+- Configure a production Recipe API endpoint and prevent production builds from depending on local sample files.
+- Move engagement product rules to Firestore/Remote Config if points, badges, milestones, or ranking policy need runtime updates.
+- Move Community taxonomy/report reasons and Palengke market config to backend/Firestore config if product staff need to edit them without a release.
+- Add collection constants/repositories for the final Firestore naming plan.
+- Add backend support for push or scheduled notifications if out-of-app reminders are required.
 
 ### UI/UX
 
 - Apply loading, empty, error, and offline states to every async screen and detail flow.
 - Finish a UI consistency pass across older screens that still mix `AppTheme` and newer design patterns.
-- Improve Scanner/Pantry navigation, manual entry, scanned result review, edit/delete flows, and pantry item management.
+- Improve Scanner/Pantry scanned result history, reviewed scan editing, and pantry-to-planner flows.
 - Add supermarket barcode scanning only for packaged/supermarket items.
 - Keep palengke and wet-market items manual or category-based because many do not have reliable barcodes.
 - Add moderator/admin affordances for reviewing reported or `underReview` Community posts.
+- Add clear retry/error affordances to NutriBot chat failures and form-submission failures.
 
 ### AI / NutriBot
 
+- Keep NutriBot advice-only until confirmed write workflows are implemented.
 - Upgrade NutriBot from context-aware chat to actionable assistance that can safely apply edits to forms, drafts, meal plans, and logs.
 - Pass structured screen context into NutriBot consistently: user goal, budget, selected date, Meal Log entries, scanned result, Community draft, recipe, or profile data.
 - Add safe confirmation steps before NutriBot writes to Firestore or modifies user-entered content.
@@ -112,9 +130,9 @@ Product direction:
 
 ### Performance / Scalability
 
-- Replace Community post like arrays with `community_posts/{postId}/likes/{uid}` and maintain aggregate `likeCount`.
 - Add pagination and Firestore indexes where feeds, comments, rankings, or history screens can grow large.
 - Avoid unbounded listeners for large collections.
+- Backfill or clean legacy Community `likes[]` data after the subcollection migration is fully verified.
 - Add integration/widget tests around auth, Meal Log, scanner saves, Community post creation, NutriBot panel, notifications, and engagement.
 
 ### Security / Privacy
@@ -136,6 +154,8 @@ Product direction:
 - `users/{uid}/followers/{followerUid}` and `users/{uid}/following/{targetUid}`: follow graph records. Example fields: `userId`, `createdAt`.
 - `users/{uid}/badges/{badgeId}`: earned badge record. Example fields: `badgeId`, `title`, `description`, `icon`, `earnedAt`, `sourceAction`, `ruleSource`.
 - `users/{uid}/weeklyStats/{weekId}`: leaderboard/engagement record. Example fields: `weekId`, `points`, `mealsLogged`, `postsCreated`, `commentsCreated`, `streakDays`.
+- `users/{uid}/pantry_items/{itemId}`: manual pantry ingredient record. Example fields: `name`, `quantity`, `unit`, `category`, `source`, `isPalengkeItem`, `createdAt`, `updatedAt`.
+- `users/{uid}/scanned_items/{scanId}`: confirmed scan history record. Example fields: `name`, `calories`, `price`, `mealType`, `imageUrl`, `source`, `confidence`, `createdAt`, `updatedAt`.
 - `users/{uid}/weekly_palengke_lists/{weekId}`: persisted generated grocery list. Example fields: `weekId`, `weekStart`, `weekEnd`, `itemCount`, `boughtCount`, `totalEstimatedPricePhp`, `usesPrototypeEstimates`, `usingFirestoreMarketConfig`, `updatedAt`.
 - `users/{uid}/weekly_palengke_lists/{weekId}/items/{itemId}`: persisted Palengke item state. Example fields: `name`, `normalizedName`, `estimatedPricePhp`, `marketCategory`, `isBought`, `sourceMealIds`, `priceSource`, `priceSourceType`, `lastVerifiedDate`, `isPrototypeEstimate`.
 - `local_foods/{foodId}`: Home and planner local food source. Example fields: `name`, `category`, `tag`, `pricePhp`, `unit`, `priceLabel`, `emoji`, `isActive`, `source`, `sourceType`, `lastVerifiedDate`, `isPrototypeEstimate`, `updatedAt`.
@@ -153,8 +173,6 @@ Product direction:
 - `community_posts/{postId}/comments`
 - `community_posts/{postId}/likes`
 - `community_posts/{postId}/reports`
-- `pantry_items`
-- `scanned_items`
 - `notifications`
 - `badges`
 - `badge_rules`
@@ -170,7 +188,7 @@ Product direction:
 - The current Firestore collection is `posts`; do not rename it casually without a migration.
 - Recommended migration: add repository constants, backfill `posts` into `community_posts` with the same IDs, update security rules/indexes, dual-read during transition, then remove old reads after verification.
 - **DI-021 RESOLVED**: Likes migrated from `posts/{postId}/likes[]` array to `posts/{postId}/likes/{uid}` subcollection with aggregate `likeCount` field. Legacy `likes[]` array preserved for backward compatibility during migration. New FirestoreService methods: `toggleLike()`, `isPostLikedBy()`, `getLikeCount()`, `likeCountStream()`.
-- Pantry and scanned item collections do not exist yet.
+- Pantry item storage now exists under `users/{uid}/pantry_items`; confirmed scan history now exists under `users/{uid}/scanned_items`.
 - Meal plans are stored as Meal Log documents today; a separate `meal_plans` collection would make weekly plan history clearer.
 
 ---
@@ -191,18 +209,49 @@ Connected areas:
 
 Capability levels:
 
-- Level 1 - Chat only ✅: user asks questions; assistant replies without app context.
-- Level 2 - Context-aware ✅: assistant receives screen/app context and gives targeted advice.
-- Level 3 - Actionable (safe / limited): assistant can apply confirmed changes to forms, drafts, Meal Log entries, meal plans, or settings. **Currently OFF by design.** No NutriBot action writes to Firestore, providers, or feature state. The former "Apply" button is now "Use Suggestion" (advice only) with a visible disclaimer; the system prompt explicitly forbids the bot from claiming it applied / updated / saved anything.
+- Level 1 - Chat: done. Users can ask questions and receive advice.
+- Level 2 - Context-aware: done. NutriBot receives screen/app context and gives targeted advice.
+- Level 3 - Actionable: safe / limited. Today this is advice-only; no NutriBot action writes to Firestore, providers, or feature state.
 
-Current level: Level 2 with an advice-only ceiling on Level 3 actions.
+Current level: Level 2 with an advice-only ceiling on Level 3 actions. The current "Use Suggestion" path sends a chat prompt only. The visible disclaimer says NutriBot will not change the meal plan, Meal Log, or Community post, and the system prompt forbids claims that it saved, updated, or applied changes.
 
 Target level: Level 3. If Apply-to-feature-state is later added, every real-write action must:
 
 - present an explicit confirmation dialog that shows the exact change,
-- validate inputs before writing (calories, price, portions, etc. must come from trusted sources, not assumed from AI output),
-- use the existing provider/service paths (e.g. `MealProvider.addManualMeal`, `CommunityProvider.createPost`) — never a bespoke write,
-- stay OFF in contexts where the bot does not have verified data for the affected fields.
+- validate inputs before writing; calories, price, portions, and nutrition fields must come from trusted sources, not assumed from AI output,
+- use existing provider/service paths such as `MealProvider.addManualMeal` or `CommunityProvider.createPost`; never use a bespoke write path,
+- stay off in contexts where the bot does not have verified data for the affected fields.
+
+---
+
+## Data Integrity Status
+
+Fully resolved:
+
+- Seeded/default Meal Log entries and hardcoded weekly meal templates are removed.
+- New users start with an empty Firestore-backed Meal Log.
+- Scanner save flow blocks generic, missing, or low-confidence AI values until the user reviews and confirms them.
+- AI Meal Planner blocks generation until daily budget, age, gender, height, and weight are confirmed.
+- Home local food cards load from Firestore `local_foods` with loading, empty, and error states.
+- Community posts, comments, follows, reports, notifications, and scalable likes are Firestore-backed.
+- Weekly Palengke List generated items and bought state persist to Firestore.
+- Manual Pantry items persist to Firestore with add, edit, delete, list, empty, loading, and error states.
+- Confirmed scanner saves persist to Scan History with list, empty, error, retry, and delete states.
+- Meal Swap requires user confirmation before replacing a Meal Log meal and does not claim unavailable alternatives.
+- Engagement activity writes weekly stats and earned badges from real app actions.
+- NutriBot is advice-only and does not fake saved, updated, or applied actions.
+
+Remaining:
+
+- `local_foods` and `market_prices` still need verified production Davao/local records.
+- Local Meal Planner foods, recipe assets, and Palengke fallback maps remain prototype/sample datasets with disclosure.
+- Meal Swap alternatives still depend on the prototype Meal Planner dataset.
+- Production Recipe API/data source is not complete.
+- Scan History image URL/confidence enrichment, packaged-item barcode flow, push notifications, moderation queue, and dedicated meal plan history are not complete.
+- Engagement, Community taxonomy, and Palengke rules are app-config or fallback config, not fully remote-configurable.
+- Firestore rules, API key handling, pagination/indexes, and test coverage still need a release review.
+
+Overall readiness: suitable for prototype/demo or academic defense with clear dataset disclosures; not production-ready for live market-price, medical, or fully automated AI-write claims.
 
 ---
 
@@ -225,34 +274,28 @@ Target level: Level 3. If Apply-to-feature-state is later added, every real-writ
 
 ## 9. Next Priority Checklist
 
-### Phase 1: Data Integrity
+### Phase 1: Data Integrity Remaining
 
-- [x] Audit current screens and identify remaining hardcoded data.
-- [x] Remove seeded/default Meal Log entries, remove hardcoded weekly meal templates, replace Home budget copy with the user's budget, and move Home local food cards to Firestore `local_foods`.
-- [x] Centralize Community categories, suggested tags, and report reasons as app config while keeping Firestore-backed Community data flows intact.
-- [x] Prevent scanner fallback values from being saved to Meal Log without user review.
-- [x] Block AI Meal Planner generation until daily budget, age, gender, height, and weight are confirmed in user profile data.
-- [x] Add source/prototype metadata to the local Davao planner dataset and label planner prices/macros as prototype estimates.
-- [x] Label recipe sample datasets, guard release Recipe API configuration, and avoid presenting missing recipe price/macros as real values.
-- [x] Persist Weekly Grocery / Palengke List generated items and bought state to Firestore.
-- [x] Prefer Firestore `market_prices` / `local_foods` for Palengke price/category config and label prototype fallbacks.
-- [x] Centralize engagement points, badge definitions, thresholds, and leaderboard ranking rules as app-config product rules.
-- [ ] Populate and validate Firestore `local_foods` / `market_prices` with sourced Davao/local food records.
-- [ ] Replace prototype recipe assets/backend sample files with verified production recipe data.
+- [ ] Populate and validate Firestore `local_foods` / `market_prices` with sourced Davao/local food records, macros, serving sizes, and verification dates.
+- [ ] Repoint Meal Swap alternatives to verified local food/market data and add selected-plan swapping if needed.
+- [ ] Replace prototype recipe assets/backend sample files with verified production recipe data and a production Recipe API endpoint.
+- [ ] Replace remaining prototype Palengke alias, price, and category fallback maps with verified market config.
+- [ ] Add scan image upload/image URL, confidence mapping, and optional reuse-to-log flow for Scan History; decide how pantry items should feed Meal Planner/Palengke flows.
+- [ ] Add a dedicated `meal_plans` collection/history flow if generated plans must be revisited outside Meal Log entries.
 - [ ] Define collection constants and target schemas for Meal Log, meal plans, Community posts, pantry items, scanned items, notifications, badges, and leaderboard stats.
-- [ ] Migrate Community post likes from array storage to a likes subcollection.
-- [ ] Wire Davao/local food prices and macros into the optimizer with validated source notes.
-- [ ] Replace remaining prototype Palengke alias/price/category fallback maps with verified market config.
+- [ ] Backfill or clean legacy Community `likes[]` data after the likes subcollection migration is verified.
+- [ ] Move engagement rules, Community taxonomy/report reasons, and Palengke market config to Firestore/Remote Config if runtime editing is needed.
+- [ ] Harden profile/default fallbacks so missing user data never appears as confirmed production data.
 
 ### Phase 2: UX Stability
 
-- [x] Ship reusable loading/empty/error/offline state components (`lib/widgets/state_views.dart`).
-- [x] Apply states to Home (today's meals), Meal Log, Community feed, Profile badges, Profile weekly ranking, and Notifications — with retry on error.
-- [ ] Extend states to NutriBot (retry last prompt), Recipe Browser detail, Edit Profile, Generated Recipe screen, create-post submit failure path, and remaining modal/detail flows.
-- [ ] Consolidate local variants (`_StateBox`, `_StateMessage`, `_buildStateMessage`, `_recipeStateBox`, `_emptyMilestoneBox`) to use the shared components where safe.
-- [ ] Improve Scanner/Pantry flow and add supermarket barcode scanning for packaged items only.
+- [ ] Extend loading/empty/error/offline states to NutriBot retry, Recipe Browser detail, Edit Profile, Generated Recipe screen, create-post submit failures, and remaining modal/detail flows.
+- [ ] Consolidate local state-message variants to use `lib/widgets/state_views.dart` where safe.
+- [ ] Improve Scanner/Pantry reviewed scan editing, scanned history, and pantry-to-planner flow.
+- [ ] Add supermarket barcode scanning for packaged items only.
 - [ ] Keep palengke/wet-market item entry manual or category-based.
 - [ ] Complete a final UI consistency pass across all screens.
+
 
 ### Phase 3: AI Integration
 
@@ -260,14 +303,15 @@ Target level: Level 3. If Apply-to-feature-state is later added, every real-writ
 - [ ] Add safe Apply workflows for post improvement, meal plan edits, scanned result edits, and Meal Log suggestions.
 - [ ] Require user confirmation before NutriBot writes to Firestore/backend.
 - [ ] Keep NutriBot recommendations grounded in real app data and verified local food records.
+- [ ] Add chat retry/offline handling and clearer AI failure states.
 
 ### Phase 4: Advanced Features
 
 - [ ] Add real push/local notifications if out-of-app reminders are required.
 - [ ] Move leaderboard, badge, milestone, and point rules from app config to Firestore/Remote Config if product needs runtime tuning.
-- [ ] Add Community moderation/reporting queue.
+- [ ] Add pagination and Firestore indexes for growing feeds, comments, rankings, and history screens.
 - [ ] Add integration/widget tests for auth, Meal Log, Community posts, scanner saves, notifications, NutriBot, and engagement.
-- [ ] Review Firestore rules, privacy, and sensitive health-data handling before release.
+- [ ] Review Firestore rules, privacy, API key handling, and sensitive health-data access before release.
 
 ---
 
@@ -281,7 +325,7 @@ Target level: Level 3. If Apply-to-feature-state is later added, every real-writ
 - Offline handling is now surfaced via `ErrorStateView` + `isOfflineError` heuristic on primary data-driven screens, but coverage is not complete across every async flow (chat, detail screens, form submissions).
 - NutriBot is context-aware but does not yet write safe, confirmed changes back to the app.
 - Local Davao food prices and macros are estimates and need verification before production reliance.
-- Community post likes stored as arrays can become a scalability issue.
+- Legacy Community `likes[]` arrays may remain on older documents until migration cleanup, but active like writes use a likes subcollection with aggregate `likeCount`.
 - API key and AI backend handling need a production security review.
 
 ---
@@ -313,4 +357,7 @@ A feature is done only if:
 - Engagement rules cleanup on 2026-04-25 centralized points, counter fields, badge definitions, badge thresholds, leaderboard limits, and ranking tie-breaks in `lib/config/engagement_config.dart`; newly awarded badges persist `ruleSource`.
 - Community audit on 2026-04-25 confirmed no hardcoded users, posts, comments, likes, follower counts, badges, or leaderboard values remain; feed, author profile, likes, comments, follows, badges, and weekly ranking all read/write through `FirestoreService` and `EngagementService`.
 - Shared async states on 2026-04-25 added `lib/widgets/state_views.dart` (`LoadingStateView`, `EmptyStateView`, `ErrorStateView`, `InlineErrorStateCard`, `isOfflineError`) and wired it into Home (today's meals loading/error), Meal Log body (on-screen error with retry), Community feed (on-screen error with retry when feed is empty), Profile badges + weekly ranking (inline error card with retry that restarts the Firestore stream), and Notifications (error with retry). Retry buttons reuse the provider's existing `listenTo...` methods or bump a key on the stream.
+- Phase 2 Pantry + Scanner Hub on 2026-04-25 added a center Food Input Hub, kept AI Scan Meal and Manual Meal Log flows working, added Barcode Scan as a coming-soon placeholder only, and added Firestore-backed manual pantry items under `users/{uid}/pantry_items`.
+- Phase 2 Scanner History on 2026-04-25 added Firestore-backed confirmed scan history under `users/{uid}/scanned_items`; scanner validation remains unchanged and history writes only after confirmed scanner saves.
+- Phase 2 Meal Swap on 2026-04-25 added confirmed Meal Log replacement using Cheaper, Higher Protein, and Lower Calorie alternatives from the existing Meal Planner dataset; prototype price/macro disclosure remains required.
 - `flutter analyze` passed on 2026-04-25 with no issues found for the state-view files and all touched screens.

@@ -12,7 +12,7 @@ import 'home_screen.dart';
 import 'meal_plan_screen.dart';
 import 'community_screen.dart';
 import 'profile_screen.dart';
-import 'food_scanner_screen.dart';
+import 'scan_options_screen.dart';
 import 'create_post_screen.dart';
 
 class MainShell extends StatefulWidget {
@@ -170,7 +170,7 @@ class _MainShellState extends State<MainShell> {
     return Expanded(
       child: GestureDetector(
         onTap: () => Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => const FoodScannerScreen()),
+          MaterialPageRoute(builder: (_) => const ScanOptionsScreen()),
         ),
         behavior: HitTestBehavior.opaque,
         child: SizedBox(

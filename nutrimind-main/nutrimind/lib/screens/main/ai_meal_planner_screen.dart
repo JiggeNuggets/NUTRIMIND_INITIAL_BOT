@@ -1012,9 +1012,9 @@ class _AiMealPlannerScreenState extends State<AiMealPlannerScreen> {
     final allKeys = MealPlannerFoodData.allGroupKeys();
 
     return Scaffold(
-      backgroundColor: ModernAppTheme.backgroundNeutral,
+      backgroundColor: ModernAppTheme.bgGreen,
       appBar: AppBar(
-        backgroundColor: ModernAppTheme.backgroundNeutral,
+        backgroundColor: ModernAppTheme.bgGreen,
         surfaceTintColor: Colors.transparent,
         title: const Text('AI Meal Planner'),
         actions: [
@@ -1026,10 +1026,10 @@ class _AiMealPlannerScreenState extends State<AiMealPlannerScreen> {
       body: Form(
         key: _formKey,
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
           children: [
             Container(
-              padding: const EdgeInsets.all(20),
+              padding: const EdgeInsets.all(18),
               decoration: BoxDecoration(
                 gradient: ModernAppTheme.gradientMint,
                 borderRadius: BorderRadius.circular(ModernAppTheme.radiusXl),
@@ -1052,7 +1052,7 @@ class _AiMealPlannerScreenState extends State<AiMealPlannerScreen> {
                   const SizedBox(width: 14),
                   Expanded(
                     child: Text(
-                      'Hi ${user?.name.split(' ').first ?? 'there'} - optimize BMR baskets, then generate Groq meal stories when you want extra guidance.',
+                      'Hi ${user?.name.split(' ').first ?? 'there'} - build Davao-friendly meal baskets from your profile, budget, and goal. Prices are prototype estimates.',
                       style: const TextStyle(
                         color: ModernAppTheme.textDark,
                         fontSize: 13,
@@ -1063,12 +1063,6 @@ class _AiMealPlannerScreenState extends State<AiMealPlannerScreen> {
                   ),
                 ],
               ),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              'Hi ${user?.name.split(' ').first ?? 'there'} — optimize Davao local meals from your BMR, budget, and macro needs, then optionally generate meal blurbs via Groq.',
-              style: const TextStyle(
-                  color: AppTheme.textMid, fontSize: 13, height: 1.45),
             ),
             const SizedBox(height: 16),
             if (!profileStatus.isComplete) ...[

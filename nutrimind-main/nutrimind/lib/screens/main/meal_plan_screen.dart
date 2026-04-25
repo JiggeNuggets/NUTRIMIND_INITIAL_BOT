@@ -8,6 +8,7 @@ import '../../providers/meal_provider.dart';
 import '../../providers/notification_provider.dart';
 import '../../models/meal_model.dart';
 import '../../models/nutribot_models.dart';
+import '../../services/meal_swap_service.dart';
 import '../../widgets/nutribot/nutribot_launcher.dart';
 import '../../widgets/state_views.dart';
 import 'ai_meal_planner_screen.dart';
@@ -20,6 +21,268 @@ class MealPlanScreen extends StatefulWidget {
 
   @override
   State<MealPlanScreen> createState() => _MealPlanScreenState();
+}
+
+class _MealSwapSheet extends StatelessWidget {
+  const _MealSwapSheet({
+    required this.meal,
+    required this.options,
+    required this.onChoose,
+  });
+
+  final MealModel meal;
+  final List<MealSwapOption> options;
+  final Future<void> Function(MealSwapOption option) onChoose;
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Container(
+        margin: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: AppTheme.white,
+          borderRadius: BorderRadius.circular(24),
+          boxShadow: ModernAppTheme.shadowXl,
+        ),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(18, 18, 18, 22),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Expanded(
+                    child: Text(
+                      'Swap Meal',
+                      style: TextStyle(
+                        color: AppTheme.textDark,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    icon: const Icon(Icons.close, color: AppTheme.textMid),
+                  ),
+                ],
+              ),
+              Text(
+                'Replace ${meal.name} with an alternative from the existing Meal Planner dataset.',
+                style: const TextStyle(
+                  color: AppTheme.textMid,
+                  fontSize: 13,
+                  height: 1.4,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppTheme.orangeAccent.withValues(alpha: 0.10),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: AppTheme.orangeAccent.withValues(alpha: 0.28),
+                  ),
+                ),
+                child: const Text(
+                  'Prototype disclosure: local prices and macros are estimates, not live market prices.',
+                  style: TextStyle(
+                    color: AppTheme.orangeAccent,
+                    fontSize: 12,
+                    height: 1.35,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 14),
+              ...options.map(
+                (option) => Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: _MealSwapOptionCard(
+                    option: option,
+                    onChoose:
+                        option.isAvailable ? () => onChoose(option) : null,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MealSwapOptionCard extends StatelessWidget {
+  const _MealSwapOptionCard({
+    required this.option,
+    required this.onChoose,
+  });
+
+  final MealSwapOption option;
+  final VoidCallback? onChoose;
+
+  @override
+  Widget build(BuildContext context) {
+    final food = option.food;
+    final available = food != null;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: available ? ModernAppTheme.backgroundNeutral : AppTheme.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppTheme.divider),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: _optionColor(option.type).withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  _optionIcon(option.type),
+                  color: _optionColor(option.type),
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      option.type.label,
+                      style: const TextStyle(
+                        color: AppTheme.textDark,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    Text(
+                      option.reason,
+                      style: TextStyle(
+                        color: available
+                            ? AppTheme.primaryGreen
+                            : AppTheme.textLight,
+                        fontSize: 12,
+                        height: 1.3,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          if (food != null) ...[
+            const SizedBox(height: 12),
+            Text(
+              food.name,
+              style: const TextStyle(
+                color: AppTheme.textDark,
+                fontSize: 15,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _swapMetric(
+                  'PHP ${food.estimatedPricePhp.toStringAsFixed(0)}',
+                  'est. price',
+                ),
+                _swapMetric('${food.calories}', 'kcal'),
+                if (food.protein > 0)
+                  _swapMetric('${food.protein}g', 'protein'),
+              ],
+            ),
+            if (food.healthNote.trim().isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Text(
+                food.healthNote,
+                style: const TextStyle(
+                  color: AppTheme.textMid,
+                  fontSize: 12,
+                  height: 1.35,
+                ),
+              ),
+            ],
+            const SizedBox(height: 12),
+            Align(
+              alignment: Alignment.centerRight,
+              child: ElevatedButton.icon(
+                onPressed: onChoose,
+                icon: const Icon(Icons.swap_horiz_rounded, size: 17),
+                label: const Text('Replace'),
+                style: ElevatedButton.styleFrom(
+                  minimumSize: const Size(0, 42),
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  static Widget _swapMetric(String value, String label) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+      decoration: BoxDecoration(
+        color: AppTheme.white,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: AppTheme.divider),
+      ),
+      child: RichText(
+        text: TextSpan(
+          style: const TextStyle(
+            color: AppTheme.textDark,
+            fontSize: 11,
+            fontWeight: FontWeight.w800,
+          ),
+          children: [
+            TextSpan(text: value),
+            TextSpan(
+              text: ' $label',
+              style: const TextStyle(
+                color: AppTheme.textMid,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  static IconData _optionIcon(MealSwapOptionType type) {
+    return switch (type) {
+      MealSwapOptionType.cheaper => Icons.savings_outlined,
+      MealSwapOptionType.higherProtein => Icons.fitness_center_rounded,
+      MealSwapOptionType.lowerCalorie => Icons.local_fire_department_outlined,
+    };
+  }
+
+  static Color _optionColor(MealSwapOptionType type) {
+    return switch (type) {
+      MealSwapOptionType.cheaper => AppTheme.primaryGreen,
+      MealSwapOptionType.higherProtein => AppTheme.infoBlue,
+      MealSwapOptionType.lowerCalorie => AppTheme.orangeAccent,
+    };
+  }
 }
 
 class _MealPlanScreenState extends State<MealPlanScreen> {
@@ -107,6 +370,93 @@ class _MealPlanScreenState extends State<MealPlanScreen> {
     }
   }
 
+  Future<void> _openSwapSheet(MealModel meal) async {
+    final user = context.read<AuthProvider>().userModel;
+    final options = MealSwapService.buildOptions(meal, userGoal: user?.goal);
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _MealSwapSheet(
+        meal: meal,
+        options: options,
+        onChoose: (option) async {
+          Navigator.of(context).pop();
+          await _confirmAndApplySwap(meal, option);
+        },
+      ),
+    );
+  }
+
+  Future<void> _confirmAndApplySwap(
+    MealModel meal,
+    MealSwapOption option,
+  ) async {
+    final food = option.food;
+    final user = context.read<AuthProvider>().userModel;
+    final uid = user?.uid ?? '';
+    if (food == null || uid.isEmpty) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text(
+          'Confirm Meal Swap',
+          style: TextStyle(fontWeight: FontWeight.w800),
+        ),
+        content: Text(
+          'Replace "${meal.name}" with "${food.name}"?\n\n'
+          'This updates your Meal Log only after confirmation. Local prices and macros are prototype estimates, not live market prices.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text(
+              'Cancel',
+              style: TextStyle(color: AppTheme.textMid),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Replace Meal'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    try {
+      await context.read<MealProvider>().replaceMealWithSwap(
+            uid: uid,
+            mealId: meal.id,
+            option: option,
+            displayName: user?.name ?? '',
+            photoUrl: user?.photoUrl,
+            dailyBudget: user?.dailyBudget ?? 150,
+          );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Swapped to ${food.name}.'),
+          backgroundColor: AppTheme.primaryGreen,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Could not swap meal. Please try again.'),
+          backgroundColor: AppTheme.errorRed,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
   void _openAiMealPlanner() {
     Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => const AiMealPlannerScreen()),
@@ -133,9 +483,9 @@ class _MealPlanScreenState extends State<MealPlanScreen> {
     final orderedMeals = _orderedMeals(mealProv.meals);
 
     return Scaffold(
-      backgroundColor: ModernAppTheme.backgroundNeutral,
+      backgroundColor: ModernAppTheme.bgGreen,
       appBar: AppBar(
-        backgroundColor: ModernAppTheme.backgroundNeutral,
+        backgroundColor: ModernAppTheme.bgGreen,
         surfaceTintColor: Colors.transparent,
         title: const Text('Meal Log'),
         actions: [
@@ -184,7 +534,7 @@ class _MealPlanScreenState extends State<MealPlanScreen> {
         children: [
           // Week header
           Container(
-            margin: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+            margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
               color: ModernAppTheme.white,
@@ -305,7 +655,7 @@ class _MealPlanScreenState extends State<MealPlanScreen> {
           // Nutritional summary
           if (mealProv.meals.isNotEmpty)
             Container(
-              margin: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+              margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               decoration: BoxDecoration(
                 gradient: LinearGradient(
@@ -442,7 +792,7 @@ class _MealPlanScreenState extends State<MealPlanScreen> {
       return _buildEmptyState();
     }
     return ListView.separated(
-      padding: const EdgeInsets.fromLTRB(20, 8, 20, 100),
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
       itemCount: orderedMeals.length,
       separatorBuilder: (_, __) => const SizedBox(height: 12),
       itemBuilder: (_, i) => _buildMealCard(orderedMeals[i]),
@@ -450,30 +800,12 @@ class _MealPlanScreenState extends State<MealPlanScreen> {
   }
 
   Widget _buildEmptyState() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(Icons.menu_book_outlined,
-              color: AppTheme.textLight, size: 48),
-          const SizedBox(height: 16),
-          const Text('No meals for this day',
-              style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
-                  color: AppTheme.textMid)),
-          const SizedBox(height: 8),
-          const Text('Open AI Planner to create and save a plan',
-              style: TextStyle(fontSize: 13, color: AppTheme.textLight)),
-          const SizedBox(height: 24),
-          ElevatedButton.icon(
-            onPressed: _openAiMealPlanner,
-            icon: const Icon(Icons.auto_awesome, size: 16),
-            label: const Text('Open AI Planner'),
-            style: ElevatedButton.styleFrom(minimumSize: const Size(180, 48)),
-          ),
-        ],
-      ),
+    return EmptyStateView(
+      icon: Icons.restaurant_menu_outlined,
+      title: 'No meals for this day',
+      message: 'Open AI Planner to create and save a plan.',
+      actionLabel: 'Open AI Planner',
+      onAction: _openAiMealPlanner,
     );
   }
 
@@ -607,22 +939,18 @@ class _MealPlanScreenState extends State<MealPlanScreen> {
                     Column(
                       children: [
                         if (!isLogged)
-                          GestureDetector(
+                          _mealActionButton(
+                            label: 'Log',
+                            icon: Icons.check_rounded,
+                            filled: true,
                             onTap: () => _logMeal(meal.id),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 14, vertical: 8),
-                              decoration: BoxDecoration(
-                                color: AppTheme.primaryGreen,
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              child: const Text('Log',
-                                  style: TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.w700,
-                                      fontSize: 13)),
-                            ),
                           ),
+                        if (!isLogged) const SizedBox(height: 8),
+                        _mealActionButton(
+                          label: 'Swap',
+                          icon: Icons.swap_horiz_rounded,
+                          onTap: () => _openSwapSheet(meal),
+                        ),
                         const SizedBox(height: 8),
                         Icon(
                           isExpanded
@@ -756,6 +1084,42 @@ class _MealPlanScreenState extends State<MealPlanScreen> {
                   color: AppTheme.textMid,
                   fontWeight: FontWeight.w500)),
         ],
+      ),
+    );
+  }
+
+  Widget _mealActionButton({
+    required String label,
+    required IconData icon,
+    required VoidCallback onTap,
+    bool filled = false,
+  }) {
+    final foreground = filled ? Colors.white : AppTheme.primaryGreen;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+        decoration: BoxDecoration(
+          color: filled ? AppTheme.primaryGreen : AppTheme.softGreen,
+          borderRadius: BorderRadius.circular(10),
+          border: filled ? null : Border.all(color: AppTheme.accentGreen),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 14, color: foreground),
+            const SizedBox(width: 4),
+            Text(
+              label,
+              style: TextStyle(
+                color: foreground,
+                fontWeight: FontWeight.w800,
+                fontSize: 12,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

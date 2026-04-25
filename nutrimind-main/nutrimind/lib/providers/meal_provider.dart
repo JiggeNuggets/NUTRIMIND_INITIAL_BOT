@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
 import '../services/firestore_service.dart';
 import '../services/engagement_service.dart';
+import '../services/meal_swap_service.dart';
 import '../models/meal_model.dart';
 import '../models/recipe_model.dart';
 
@@ -405,6 +406,85 @@ class MealProvider extends ChangeNotifier {
       }
     } catch (e) {
       _error = 'Could not save recipe. Please try again.';
+      notifyListeners();
+      rethrow;
+    }
+  }
+
+  Future<MealModel> replaceMealWithSwap({
+    required String uid,
+    required String mealId,
+    required MealSwapOption option,
+    String displayName = '',
+    String? photoUrl,
+    double dailyBudget = 150,
+  }) async {
+    final food = option.food;
+    if (food == null) {
+      throw ArgumentError('A swap option must include a replacement food.');
+    }
+
+    try {
+      final idx = _meals.indexWhere((meal) => meal.id == mealId);
+      if (idx == -1) {
+        throw StateError('Meal not found.');
+      }
+
+      final original = _meals[idx];
+      final notes = MealSwapService.replacementNotes(original, option);
+      final updateData = {
+        'name': food.name,
+        'price': food.estimatedPricePhp,
+        'calories': food.calories,
+        'notes': notes,
+        'ingredients': food.ingredients,
+        'protein': food.protein,
+        'carbs': food.carbs,
+        'fat': food.fat,
+        'recipe': null,
+        'cookingSteps': <String>[],
+      };
+
+      await _firestoreService.updateMeal(uid, mealId, updateData);
+
+      final swappedMeal = MealModel(
+        id: original.id,
+        userId: original.userId,
+        name: food.name,
+        type: original.type,
+        price: food.estimatedPricePhp,
+        calories: food.calories,
+        status: original.status,
+        date: original.date,
+        loggedAt: original.loggedAt,
+        notes: notes,
+        ingredients: food.ingredients,
+        protein: food.protein,
+        carbs: food.carbs,
+        fat: food.fat,
+        recipe: null,
+        cookingSteps: const [],
+      );
+
+      _meals[idx] = swappedMeal;
+      _meals.sort((a, b) => a.type.index.compareTo(b.type.index));
+      _error = null;
+      notifyListeners();
+
+      if (_isBudgetFriendlyMeal(swappedMeal.price, dailyBudget)) {
+        await _tryRecordActivity(
+          uid: uid,
+          displayName: displayName,
+          photoUrl: photoUrl,
+          actionType: WeeklyStatAction.budgetFriendlyMeal,
+          occurredAt: swappedMeal.date,
+          dailyBudget: dailyBudget,
+        );
+      }
+
+      return swappedMeal;
+    } catch (e) {
+      _error = 'Could not swap meal. Please try again.';
       notifyListeners();
       rethrow;
     }

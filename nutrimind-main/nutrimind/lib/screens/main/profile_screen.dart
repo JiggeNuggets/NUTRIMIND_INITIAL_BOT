@@ -22,9 +22,9 @@ class ProfileScreen extends StatelessWidget {
     final mealProv = context.watch<MealProvider>();
 
     return Scaffold(
-      backgroundColor: ModernAppTheme.backgroundNeutral,
+      backgroundColor: ModernAppTheme.bgGreen,
       appBar: AppBar(
-        backgroundColor: ModernAppTheme.backgroundNeutral,
+        backgroundColor: ModernAppTheme.bgGreen,
         surfaceTintColor: Colors.transparent,
         title: const Text('NutriMind'),
         actions: [
@@ -36,7 +36,7 @@ class ProfileScreen extends StatelessWidget {
         ],
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(20, 0, 20, 100),
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -132,8 +132,7 @@ class ProfileScreen extends StatelessWidget {
                   _statBox('${user?.height.toStringAsFixed(0) ?? '--'} cm',
                       'Height'),
                   _vDiv(),
-                  _statBox('₱${user?.dailyBudget.toStringAsFixed(0) ?? '150'}',
-                      'Daily Budget'),
+                  _statBox(_dailyBudgetLabel(user), 'Daily Budget'),
                   _vDiv(),
                   _statBox('${mealProv.loggedCount}', "Today's Logs"),
                 ],
@@ -174,6 +173,15 @@ class ProfileScreen extends StatelessWidget {
             style: const TextStyle(fontSize: 10, color: AppTheme.textMid)),
       ],
     );
+  }
+
+  String _dailyBudgetLabel(dynamic user) {
+    if (user == null ||
+        user.budgetConfigured != true ||
+        user.dailyBudget <= 0) {
+      return '--';
+    }
+    return '${AppTheme.currency}${user.dailyBudget.toStringAsFixed(0)}';
   }
 
   Widget _vDiv() => Container(
@@ -508,7 +516,6 @@ class ProfileScreen extends StatelessWidget {
       ),
     );
   }
-
 
   Widget _buildAccountMenu(BuildContext context) {
     return Column(
