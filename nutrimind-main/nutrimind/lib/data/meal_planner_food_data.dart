@@ -25,6 +25,7 @@ class LocalMealPlannerFood {
     required this.servingSize,
     required this.healthNote,
     required this.category,
+    this.imageUrl,
     this.source = MealPlannerFoodData.prototypeSource,
     this.sourceType = MealPlannerFoodData.prototypeSourceType,
     this.lastVerifiedDate,
@@ -50,6 +51,7 @@ class LocalMealPlannerFood {
   final String servingSize;
   final String healthNote;
   final String category;
+  final String? imageUrl;
 
   /// Human-readable source label for audit and UI disclosure.
   final String source;

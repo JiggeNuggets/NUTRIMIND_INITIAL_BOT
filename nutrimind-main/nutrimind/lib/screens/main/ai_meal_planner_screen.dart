@@ -1,28 +1,25 @@
-import 'dart:typed_data';
-
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
-import '../../data/meal_planner_food_data.dart';
 import '../../models/meal_model.dart';
 import '../../models/meal_planner_models.dart';
 import '../../models/nutribot_models.dart';
-import '../../models/recipe_model.dart';
 import '../../models/user_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/meal_provider.dart';
 import '../../providers/notification_provider.dart';
 import '../../services/groq_meal_narrative_service.dart';
 import '../../services/meal_planner_service.dart';
-import '../../services/recipe_dataset_service.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/modern_app_theme.dart';
 import '../../widgets/nutribot/nutribot_launcher.dart';
+import '../../utils/filipino_meal_namer.dart';
+import 'meal_plan_screen.dart';
 import 'profile_screen.dart';
 
-/// AI Meal Planner — ported from Python/Streamlit (`streamlit_meal_planner.py`, `data.py`).
-/// Uses BMR + knapsack (or random greedy) + optional Groq narratives (`prompts.py`).
+/// AI Meal Planner — BMR + knapsack/greedy optimizer + optional Groq narratives.
 class AiMealPlannerScreen extends StatefulWidget {
   const AiMealPlannerScreen({super.key});
 
@@ -31,24 +28,17 @@ class AiMealPlannerScreen extends StatefulWidget {
 }
 
 class _AiMealPlannerScreenState extends State<AiMealPlannerScreen> {
-  final _formKey = GlobalKey<FormState>();
-  late final TextEditingController _ageCtrl;
-  late final TextEditingController _weightCtrl;
-  late final TextEditingController _heightCtrl;
-  late final TextEditingController _heightFtCtrl;
-  late final TextEditingController _heightInCtrl;
-  late final TextEditingController _recipeSearchCtrl;
-  late final TextEditingController _recipeMaxCaloriesCtrl;
-  late final TextEditingController _recipeMaxPriceCtrl;
-
-  bool _useMetric = true;
-  bool _isMale = true;
-  final Set<String> _preferredBreakfast = {};
-  final Set<String> _excludedGroups = {};
+  String _mealStyle = 'Balanced';
+  final Set<String> _avoidItems = {};
   MealPlannerAlgorithm _algorithm = MealPlannerAlgorithm.knapsack;
+  _PlanMode _planMode = _PlanMode.daily;
 
   DailyMealPlan? _plan;
   bool _building = false;
+
+  List<_WeeklyDayPlan>? _weeklyPlans;
+  bool _buildingWeekly = false;
+  bool _savingWeekly = false;
 
   String? _aiBreakfast;
   String? _aiLunch;
@@ -58,144 +48,62 @@ class _AiMealPlannerScreenState extends State<AiMealPlannerScreen> {
   final Set<PlannerMealSlot> _selectedBasketSlots = {};
   bool _savingSelectedBaskets = false;
 
-  late final RecipeDatasetService _recipeService;
-  List<RecipeModel> _recipes = [];
-  bool _recipesLoading = true;
-  String? _recipesError;
-  String _recipeMealTypeFilter = 'all';
-  final Set<String> _recipeDietFilters = {};
-  final Set<String> _recipeHealthFilters = {};
-  final Set<String> _savingRecipeIds = {};
-
   // Image analysis state
   XFile? _selectedImageFile;
   String? _imageAnalysis;
   bool _analyzingImage = false;
-  String? _profileFieldSignature;
 
   late final GroqMealNarrativeService _groq;
+
+  static const List<String> _mealStyleOptions = [
+    'Balanced',
+    'High Protein',
+    'Low Budget',
+    'Local Davao Meals',
+    'Weight Loss Friendly',
+    'Muscle Gain Friendly',
+  ];
+
+  static const List<String> _avoidOptions = [
+    'Pork',
+    'Seafood',
+    'Dairy',
+    'Eggs',
+    'Spicy Food',
+    'Expensive Ingredients',
+  ];
 
   @override
   void initState() {
     super.initState();
-    _ageCtrl = TextEditingController();
-    _weightCtrl = TextEditingController();
-    _heightCtrl = TextEditingController();
-    _heightFtCtrl = TextEditingController();
-    _heightInCtrl = TextEditingController();
-    _recipeSearchCtrl = TextEditingController();
-    _recipeMaxCaloriesCtrl = TextEditingController();
-    _recipeMaxPriceCtrl = TextEditingController();
-    _recipeSearchCtrl.addListener(_refreshRecipeFilters);
-    _recipeMaxCaloriesCtrl.addListener(_refreshRecipeFilters);
-    _recipeMaxPriceCtrl.addListener(_refreshRecipeFilters);
     _groq = GroqMealNarrativeService();
-    _recipeService = RecipeDatasetService();
-    _loadRecipeDataset();
   }
 
   @override
   void dispose() {
-    _ageCtrl.dispose();
-    _weightCtrl.dispose();
-    _heightCtrl.dispose();
-    _heightFtCtrl.dispose();
-    _heightInCtrl.dispose();
-    _recipeSearchCtrl.dispose();
-    _recipeMaxCaloriesCtrl.dispose();
-    _recipeMaxPriceCtrl.dispose();
     _groq.dispose();
     super.dispose();
   }
 
-  void _refreshRecipeFilters() {
-    if (mounted) setState(() {});
+  List<String> _mealStyleToBreakfastGroups() {
+    return switch (_mealStyle) {
+      'High Protein' => ['protein'],
+      'Local Davao Meals' => ['local_breakfast_meals'],
+      'Weight Loss Friendly' => ['fruits', 'vegetables'],
+      'Muscle Gain Friendly' => ['protein', 'whole_grains'],
+      _ => [],
+    };
   }
 
-  Future<void> _loadRecipeDataset({bool forceReload = false}) async {
-    setState(() {
-      _recipesLoading = true;
-      _recipesError = null;
-    });
-
-    if (forceReload) _recipeService.clearCache();
-    final recipes = await _recipeService.getAllRecipes();
-    if (!mounted) return;
-
-    setState(() {
-      _recipes = recipes;
-      _recipesError = _recipeService.lastError;
-      _recipesLoading = false;
-    });
-  }
-
-  List<RecipeModel> get _filteredRecipes {
-    final query = _recipeSearchCtrl.text.trim().toLowerCase();
-    final maxCalories = num.tryParse(_recipeMaxCaloriesCtrl.text.trim());
-    final maxPrice = num.tryParse(_recipeMaxPriceCtrl.text.trim());
-    final dietFilters =
-        _recipeDietFilters.map((label) => label.toLowerCase()).toSet();
-    final healthFilters =
-        _recipeHealthFilters.map((label) => label.toLowerCase()).toSet();
-
-    final filtered = _recipes.where((recipe) {
-      if (_recipeMealTypeFilter != 'all' &&
-          recipe.mealType != _recipeMealTypeFilter) {
-        return false;
-      }
-      if (maxCalories != null && recipe.calories > maxCalories) return false;
-      if (maxPrice != null && recipe.estimatedPricePhp > maxPrice) {
-        return false;
-      }
-
-      final recipeDietLabels =
-          recipe.dietLabels.map((label) => label.toLowerCase()).toSet();
-      final recipeHealthLabels =
-          recipe.healthLabels.map((label) => label.toLowerCase()).toSet();
-
-      if (dietFilters.isNotEmpty &&
-          !dietFilters.every(recipeDietLabels.contains)) {
-        return false;
-      }
-      if (healthFilters.isNotEmpty &&
-          !healthFilters.every(recipeHealthLabels.contains)) {
-        return false;
-      }
-      if (query.isEmpty) return true;
-
-      final searchable = [
-        recipe.name,
-        recipe.description,
-        recipe.mealType,
-        ...recipe.ingredients,
-        ...recipe.dietLabels,
-        ...recipe.healthLabels,
-      ].join(' ').toLowerCase();
-      return searchable.contains(query);
-    }).toList();
-
-    filtered.sort((a, b) {
-      final priceCompare = a.estimatedPricePhp.compareTo(b.estimatedPricePhp);
-      if (priceCompare != 0) return priceCompare;
-      return b.protein.compareTo(a.protein);
-    });
-    return filtered;
-  }
-
-  List<String> get _availableDietLabels {
-    final labels = <String>{
-      for (final recipe in _recipes) ...recipe.dietLabels,
-    }.toList()
-      ..sort();
-    return labels;
-  }
-
-  List<String> get _availableHealthLabels {
-    final labels = <String>{
-      for (final recipe in _recipes) ...recipe.healthLabels,
-    }.toList()
-      ..sort();
-    return labels;
+  List<String> _avoidItemsToExcludedGroups() {
+    final groups = <String>[];
+    if (_avoidItems.contains('Pork')) {
+      groups.addAll(['pork_adobo', 'pork_adobo_dinner']);
+    }
+    if (_avoidItems.contains('Seafood')) groups.add('fish');
+    if (_avoidItems.contains('Dairy')) groups.add('dairy');
+    if (_avoidItems.contains('Eggs')) groups.add('egg');
+    return groups;
   }
 
   _PlannerProfileStatus _plannerProfileStatus(UserModel? user) {
@@ -228,53 +136,8 @@ class _AiMealPlannerScreenState extends State<AiMealPlannerScreen> {
     return normalized == 'male' || normalized == 'female';
   }
 
-  String _profileSignature(UserModel? user, _PlannerProfileStatus status) {
-    if (user == null) return 'signed-out:${status.missingFields.join('|')}';
-    return [
-      user.uid,
-      user.profileCompleted,
-      user.budgetConfigured,
-      user.age,
-      user.gender,
-      user.height,
-      user.weight,
-      user.dailyBudget,
-      user.budgetBuffer,
-      status.missingFields.join('|'),
-    ].join(':');
-  }
-
-  void _syncPlannerFieldsFromProfile(
-    UserModel? user,
-    _PlannerProfileStatus status,
-  ) {
-    final signature = _profileSignature(user, status);
-    if (_profileFieldSignature == signature) return;
-    _profileFieldSignature = signature;
-
-    if (user == null || !status.isComplete) {
-      _ageCtrl.clear();
-      _weightCtrl.clear();
-      _heightCtrl.clear();
-      _heightFtCtrl.clear();
-      _heightInCtrl.clear();
-      _isMale = true;
-      return;
-    }
-
-    _ageCtrl.text = user.age.toString();
-    _weightCtrl.text = user.weight.toStringAsFixed(
-      user.weight % 1 == 0 ? 0 : 1,
-    );
-    _heightCtrl.text = user.height.toStringAsFixed(
-      user.height % 1 == 0 ? 0 : 1,
-    );
-
-    final totalInches = (user.height / 2.54).round();
-    _heightFtCtrl.text = (totalInches ~/ 12).toString();
-    _heightInCtrl.text = (totalInches % 12).toString();
-    _isMale = user.gender.trim().toLowerCase() == 'male';
-  }
+  bool _userIsMale(UserModel? user) =>
+      (user?.gender ?? '').trim().toLowerCase() == 'male';
 
   void _openProfile() {
     Navigator.of(context).push(
@@ -316,92 +179,6 @@ class _AiMealPlannerScreenState extends State<AiMealPlannerScreen> {
     );
   }
 
-  Future<void> _saveRecipeToMealLog(RecipeModel recipe) async {
-    final user = context.read<AuthProvider>().userModel;
-    final uid = user?.uid ?? '';
-    if (uid.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please sign in before saving recipes to Meal Log.'),
-          backgroundColor: AppTheme.errorRed,
-        ),
-      );
-      return;
-    }
-
-    setState(() => _savingRecipeIds.add(recipe.id));
-    try {
-      final mealProvider = context.read<MealProvider>();
-      final notifications = context.read<NotificationProvider>();
-      final meal = await mealProvider.addRecipeMeal(
-        uid: uid,
-        recipe: recipe,
-        displayName: user?.name ?? '',
-        photoUrl: user?.photoUrl,
-        dailyBudget: user!.dailyBudget,
-      );
-      await notifications.createMealReminderForMeal(uid: uid, meal: meal);
-      await notifications.createLogReminderForMeal(uid: uid, meal: meal);
-      await notifications.createBudgetWarningIfNeeded(
-        uid: uid,
-        meals: mealProvider.meals,
-        dailyBudget: user.dailyBudget,
-        date: mealProvider.selectedDate,
-      );
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('${recipe.name} saved to Meal Log.'),
-          backgroundColor: AppTheme.primaryGreen,
-        ),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Could not save recipe: $e'),
-          backgroundColor: AppTheme.errorRed,
-        ),
-      );
-    } finally {
-      if (mounted) {
-        setState(() => _savingRecipeIds.remove(recipe.id));
-      }
-    }
-  }
-
-  (double kg, double cm) _metricFromFields() {
-    final age = int.tryParse(_ageCtrl.text.trim());
-    if (age == null) throw const FormatException('Enter your age.');
-    if (age < 1) throw const FormatException('Invalid age');
-
-    if (_useMetric) {
-      final w = double.tryParse(_weightCtrl.text.trim());
-      final h = double.tryParse(_heightCtrl.text.trim());
-      if (w == null || w <= 0) {
-        throw const FormatException('Enter your weight.');
-      }
-      if (h == null || h <= 0) {
-        throw const FormatException('Enter your height.');
-      }
-      return (w, h);
-    }
-
-    final lb = double.tryParse(_weightCtrl.text.trim());
-    final ft = int.tryParse(_heightFtCtrl.text.trim());
-    final inch = int.tryParse(_heightInCtrl.text.trim());
-    if (lb == null || lb <= 0) {
-      throw const FormatException('Enter your weight.');
-    }
-    if (ft == null || ft < 0 || inch == null || inch < 0) {
-      throw const FormatException('Enter your height.');
-    }
-    return (
-      MealPlannerService.lbToKg(lb),
-      MealPlannerService.imperialHeightToCm(feet: ft, inches: inch),
-    );
-  }
-
   void _buildPlan() {
     final user = context.read<AuthProvider>().userModel;
     final profileStatus = _plannerProfileStatus(user);
@@ -410,27 +187,26 @@ class _AiMealPlannerScreenState extends State<AiMealPlannerScreen> {
       return;
     }
 
-    if (!_formKey.currentState!.validate()) return;
-
     setState(() {
       _building = true;
       _plan = null;
+      _weeklyPlans = null;
       _aiBreakfast = _aiLunch = _aiDinner = _aiSnack = null;
       _selectedBasketSlots.clear();
     });
 
     try {
-      final (kg, cm) = _metricFromFields();
+      final currentUser = user!;
       final input = MealPlannerInput(
-        weightKg: kg,
-        heightCm: cm,
-        age: int.parse(_ageCtrl.text.trim()),
-        isMale: _isMale,
-        dailyBudgetPhp: user!.dailyBudget,
-        budgetBufferPct: user.budgetBuffer,
+        weightKg: currentUser.weight,
+        heightCm: currentUser.height,
+        age: currentUser.age,
+        isMale: _userIsMale(currentUser),
+        dailyBudgetPhp: currentUser.dailyBudget,
+        budgetBufferPct: currentUser.budgetBuffer,
         allowCalorieOnlyFallback: true,
-        preferredBreakfastGroups: _preferredBreakfast.toList(),
-        excludedGroups: _excludedGroups.toList(),
+        preferredBreakfastGroups: _mealStyleToBreakfastGroups(),
+        excludedGroups: _avoidItemsToExcludedGroups(),
         algorithm: _algorithm,
       );
       final plan = MealPlannerService().buildDailyPlan(input);
@@ -444,14 +220,164 @@ class _AiMealPlannerScreenState extends State<AiMealPlannerScreen> {
                 .map((basket) => basket.slot),
           );
       });
-    } catch (e) {
+    } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('$e'), backgroundColor: AppTheme.errorRed),
+          const SnackBar(
+            content: Text('Something went wrong. Please try again.'),
+            backgroundColor: AppTheme.errorRed,
+          ),
         );
       }
     } finally {
       if (mounted) setState(() => _building = false);
+    }
+  }
+
+  void _buildWeeklyPlan() {
+    final user = context.read<AuthProvider>().userModel;
+    final profileStatus = _plannerProfileStatus(user);
+    if (!profileStatus.isComplete) {
+      _showCompleteProfileDialog(profileStatus);
+      return;
+    }
+
+    setState(() {
+      _buildingWeekly = true;
+      _weeklyPlans = null;
+      _plan = null;
+      _aiBreakfast = _aiLunch = _aiDinner = _aiSnack = null;
+      _selectedBasketSlots.clear();
+    });
+
+    try {
+      final currentUser = user!;
+      final input = MealPlannerInput(
+        weightKg: currentUser.weight,
+        heightCm: currentUser.height,
+        age: currentUser.age,
+        isMale: _userIsMale(currentUser),
+        dailyBudgetPhp: currentUser.dailyBudget,
+        budgetBufferPct: currentUser.budgetBuffer,
+        allowCalorieOnlyFallback: true,
+        preferredBreakfastGroups: _mealStyleToBreakfastGroups(),
+        excludedGroups: _avoidItemsToExcludedGroups(),
+        algorithm: _algorithm,
+      );
+
+      final today = DateTime.now();
+      final monday =
+          today.subtract(Duration(days: today.weekday - 1));
+      final plans = <_WeeklyDayPlan>[];
+      for (var i = 0; i < 7; i++) {
+        final day = DateTime(
+            monday.year, monday.month, monday.day + i);
+        final plan = MealPlannerService().buildDailyPlan(input);
+        plans.add(_WeeklyDayPlan(day, plan));
+      }
+
+      setState(() => _weeklyPlans = plans);
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Something went wrong. Please try again.'),
+            backgroundColor: AppTheme.errorRed,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _buildingWeekly = false);
+    }
+  }
+
+  Future<void> _saveWeeklyMealsToLog() async {
+    final weeklyPlans = _weeklyPlans;
+    if (weeklyPlans == null || weeklyPlans.isEmpty) {
+      _showSnack(
+        'Generate a Weekly Plan before saving.',
+        backgroundColor: AppTheme.errorRed,
+      );
+      return;
+    }
+
+    final user = context.read<AuthProvider>().userModel;
+    final uid = user?.uid ?? '';
+    if (uid.isEmpty) {
+      _showSnack(
+        'Please sign in before saving meals.',
+        backgroundColor: AppTheme.errorRed,
+      );
+      return;
+    }
+
+    setState(() => _savingWeekly = true);
+
+    try {
+      final mealProvider = context.read<MealProvider>();
+      final notifications = context.read<NotificationProvider>();
+      final savedMeals = <MealModel>[];
+      for (final dayPlan in weeklyPlans) {
+        for (final basket in dayPlan.plan.baskets) {
+          if (basket.items.isEmpty) continue;
+          final draft = _draftFromBasket(basket);
+          final savedMeal = await mealProvider.addPlannedMeal(
+            uid: uid,
+            name: draft.name,
+            type: draft.type,
+            price: draft.price,
+            calories: draft.calories,
+            protein: draft.protein,
+            carbs: draft.carbs,
+            fat: draft.fat,
+            ingredients: draft.ingredients,
+            notes: draft.notes,
+            imageUrl: draft.imageUrl,
+            displayName: user!.name,
+            photoUrl: user.photoUrl,
+            dailyBudget: user.dailyBudget,
+            forDate: dayPlan.date,
+          );
+          savedMeals.add(savedMeal);
+          if (!mounted) break;
+        }
+        if (!mounted) break;
+      }
+      if (!mounted) return;
+
+      await notifications.createMealRemindersForMeals(
+        uid: uid,
+        meals: savedMeals,
+      );
+      if (!mounted) return;
+
+      await notifications.createBudgetWarningIfNeeded(
+        uid: uid,
+        meals: mealProvider.meals,
+        dailyBudget: user!.dailyBudget,
+        date: mealProvider.selectedDate,
+      );
+      if (!mounted) return;
+
+      if (savedMeals.isNotEmpty) {
+        await notifications.createPalengkeReminder(
+          uid: uid,
+          date: mealProvider.selectedDate,
+        );
+        if (!mounted) return;
+      }
+
+      setState(() => _weeklyPlans = null);
+      await _showSavedDialog();
+    } catch (_) {
+      if (mounted) {
+        _showSnack(
+          'Something went wrong. Please try again.',
+          backgroundColor: AppTheme.errorRed,
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _savingWeekly = false);
     }
   }
 
@@ -487,6 +413,7 @@ class _AiMealPlannerScreenState extends State<AiMealPlannerScreen> {
           items: plan.breakfast.itemNames,
           userName: name,
         );
+        if (!mounted) return;
       }
       if (plan.lunch.items.isNotEmpty) {
         l = await _groq.generateForBasket(
@@ -494,6 +421,7 @@ class _AiMealPlannerScreenState extends State<AiMealPlannerScreen> {
           items: plan.lunch.itemNames,
           userName: name,
         );
+        if (!mounted) return;
       }
       if (plan.dinner.items.isNotEmpty) {
         d = await _groq.generateForBasket(
@@ -501,6 +429,7 @@ class _AiMealPlannerScreenState extends State<AiMealPlannerScreen> {
           items: plan.dinner.itemNames,
           userName: name,
         );
+        if (!mounted) return;
       }
       if (plan.snack.items.isNotEmpty) {
         s = await _groq.generateForBasket(
@@ -508,19 +437,21 @@ class _AiMealPlannerScreenState extends State<AiMealPlannerScreen> {
           items: plan.snack.itemNames,
           userName: name,
         );
+        if (!mounted) return;
       }
-      if (mounted) {
-        setState(() {
-          _aiBreakfast = b;
-          _aiLunch = l;
-          _aiDinner = d;
-          _aiSnack = s;
-        });
-      }
-    } catch (e) {
+      setState(() {
+        _aiBreakfast = b;
+        _aiLunch = l;
+        _aiDinner = d;
+        _aiSnack = s;
+      });
+    } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('$e'), backgroundColor: AppTheme.errorRed),
+          const SnackBar(
+            content: Text('Something went wrong. Please try again.'),
+            backgroundColor: AppTheme.errorRed,
+          ),
         );
       }
     } finally {
@@ -532,7 +463,7 @@ class _AiMealPlannerScreenState extends State<AiMealPlannerScreen> {
     final plan = _plan;
     if (plan == null) {
       _showSnack(
-        'Create Davao DSS baskets before saving meals.',
+        'Generate a meal plan before saving.',
         backgroundColor: AppTheme.errorRed,
       );
       return;
@@ -548,7 +479,7 @@ class _AiMealPlannerScreenState extends State<AiMealPlannerScreen> {
 
     if (selectedBaskets.isEmpty) {
       _showSnack(
-        'Select at least one basket before saving.',
+        'Select at least one meal before saving.',
         backgroundColor: AppTheme.errorRed,
       );
       return;
@@ -563,6 +494,7 @@ class _AiMealPlannerScreenState extends State<AiMealPlannerScreen> {
       );
       return;
     }
+    final currentUser = user!;
 
     setState(() => _savingSelectedBaskets = true);
 
@@ -571,6 +503,7 @@ class _AiMealPlannerScreenState extends State<AiMealPlannerScreen> {
       final notifications = context.read<NotificationProvider>();
       final selectedDate = mealProvider.selectedDate;
       await mealProvider.selectDate(uid, selectedDate);
+      if (!mounted) return;
 
       var drafts = selectedBaskets.map(_draftFromBasket).toList();
       final duplicateTypes = drafts.map((draft) => draft.type).toSet();
@@ -600,6 +533,7 @@ class _AiMealPlannerScreenState extends State<AiMealPlannerScreen> {
           setState(() => _savingSelectedBaskets = true);
           for (final meal in duplicateMeals) {
             await mealProvider.deleteMeal(uid, meal.id);
+            if (!mounted) return;
           }
         }
       }
@@ -607,21 +541,13 @@ class _AiMealPlannerScreenState extends State<AiMealPlannerScreen> {
       if (mounted) setState(() => _savingSelectedBaskets = true);
       final savedMeals = <MealModel>[];
       for (final draft in drafts) {
-        final meal = await mealProvider.addPlannedMeal(
+        final meal = await _savePlannerDraftToMealLog(
+          mealProvider: mealProvider,
           uid: uid,
-          name: draft.name,
-          type: draft.type,
-          price: draft.price,
-          calories: draft.calories,
-          protein: draft.protein,
-          carbs: draft.carbs,
-          fat: draft.fat,
-          ingredients: draft.ingredients,
-          notes: draft.notes,
-          displayName: user?.name ?? '',
-          photoUrl: user?.photoUrl,
-          dailyBudget: user!.dailyBudget,
+          user: currentUser,
+          draft: draft,
         );
+        if (!mounted) return;
         savedMeals.add(meal);
       }
 
@@ -629,35 +555,59 @@ class _AiMealPlannerScreenState extends State<AiMealPlannerScreen> {
         uid: uid,
         meals: savedMeals,
       );
+      if (!mounted) return;
       await notifications.createBudgetWarningIfNeeded(
         uid: uid,
         meals: mealProvider.meals,
-        dailyBudget: user!.dailyBudget,
+        dailyBudget: currentUser.dailyBudget,
         date: selectedDate,
       );
+      if (!mounted) return;
       if (savedMeals.isNotEmpty) {
         await notifications.createPalengkeReminder(
           uid: uid,
           date: selectedDate,
         );
+        if (!mounted) return;
       }
 
-      if (!mounted) return;
       setState(() {
         _selectedBasketSlots.removeAll(drafts.map((draft) => draft.slot));
       });
-      _showSnack(
-        'Saved ${drafts.length} meal${drafts.length == 1 ? '' : 's'} to Log for ${_formatMealDate(selectedDate)}.',
-      );
-    } catch (e) {
+      await _showSavedDialog();
+    } catch (_) {
       if (!mounted) return;
       _showSnack(
-        'Could not save selected meals: $e',
+        'Something went wrong. Please try again.',
         backgroundColor: AppTheme.errorRed,
       );
     } finally {
       if (mounted) setState(() => _savingSelectedBaskets = false);
     }
+  }
+
+  Future<MealModel> _savePlannerDraftToMealLog({
+    required MealProvider mealProvider,
+    required String uid,
+    required UserModel user,
+    required _BasketMealDraft draft,
+  }) {
+    return mealProvider.addPlannedMeal(
+      uid: uid,
+      name: draft.name,
+      type: draft.type,
+      price: draft.price,
+      calories: draft.calories,
+      protein: draft.protein,
+      carbs: draft.carbs,
+      fat: draft.fat,
+      ingredients: draft.ingredients,
+      notes: draft.notes,
+      imageUrl: draft.imageUrl,
+      displayName: user.name,
+      photoUrl: user.photoUrl,
+      dailyBudget: user.dailyBudget,
+    );
   }
 
   Future<_DuplicateBasketAction?> _showDuplicateBasketDialog(
@@ -676,7 +626,7 @@ class _AiMealPlannerScreenState extends State<AiMealPlannerScreen> {
           style: TextStyle(fontWeight: FontWeight.w800),
         ),
         content: Text(
-          'This date already has: $labels. NutriMind keeps one breakfast, lunch, dinner, and snack per day. Replace existing meals or skip those selected baskets?',
+          'This date already has: $labels. NutriMind keeps one breakfast, lunch, dinner, and snack per day. Replace existing meals or skip the duplicates?',
         ),
         actions: [
           TextButton(
@@ -720,18 +670,10 @@ class _AiMealPlannerScreenState extends State<AiMealPlannerScreen> {
         if (!profileStatus.isComplete)
           'missingPlannerProfileFields': profileStatus.missingFields,
         'algorithm': _algorithm.name,
-        'useMetric': _useMetric,
-        if (profileStatus.isComplete) 'isMale': _isMale,
-        if (_preferredBreakfast.isNotEmpty)
-          'preferredBreakfastGroups': _preferredBreakfast.toList(),
-        if (_excludedGroups.isNotEmpty)
-          'excludedGroups': _excludedGroups.toList(),
-        if (_recipeMealTypeFilter != 'all')
-          'recipeMealTypeFilter': _recipeMealTypeFilter,
-        if (_recipeDietFilters.isNotEmpty)
-          'recipeDietFilters': _recipeDietFilters.toList(),
-        if (_recipeHealthFilters.isNotEmpty)
-          'recipeHealthFilters': _recipeHealthFilters.toList(),
+        'mealStyle': _mealStyle,
+        if (_avoidItems.isNotEmpty) 'avoidItems': _avoidItems.toList(),
+        if (profileStatus.isComplete && user != null)
+          'isMale': _userIsMale(user),
         if (_plan != null)
           'currentPlan': {
             'bmr': _plan!.bmr,
@@ -775,21 +717,24 @@ class _AiMealPlannerScreenState extends State<AiMealPlannerScreen> {
         basket.items.where((item) => item.isCalorieOnlyFallback).length;
     final hasPriceEstimate = basket.items.any((item) => item.hasPrice);
     final noteLines = [
-      'Generated from NutriMind DSS using BMR targets, Davao/local food availability, prototype estimated local prices, and estimated macros. These are not live market prices.',
-      'Basket items: ${basket.itemNames.join(', ')}',
+      'Generated from NutriMind AI Meal Planner using BMR targets, Davao/local food availability, and estimated macros. These are not live market prices.',
+      'Meal items: ${basket.itemNames.join(', ')}',
       if (localCount > 0)
-        '$localCount item${localCount == 1 ? '' : 's'} came from the local Davao prototype dataset.',
+        '$localCount item${localCount == 1 ? '' : 's'} came from the local Davao food dataset.',
       if (fallbackCount > 0)
-        '$fallbackCount fallback item${fallbackCount == 1 ? '' : 's'} are calorie-only prototype estimates and were not used for strict budget calculation.',
+        '$fallbackCount fallback item${fallbackCount == 1 ? '' : 's'} are calorie-only estimates and were not used for strict budget calculation.',
       if (hasPriceEstimate)
-        'Prototype estimated local price: PHP ${basket.totalPricePhp.toStringAsFixed(0)}.'
+        'Estimated local price: PHP ${basket.totalPricePhp.toStringAsFixed(0)}.'
       else
-        'No structured price estimate was available for these basket items.',
+        'No structured price estimate was available for these meal items.',
     ];
 
     return _BasketMealDraft(
       slot: basket.slot,
-      name: 'AI ${basket.slot.label} Basket',
+      name: FilipinoMealNamer.nameFromItems(
+        basket.itemNames,
+        basket.slot.label,
+      ),
       type: _mealTypeForSlot(basket.slot),
       price: basket.totalPricePhp,
       calories: basket.totalCalories,
@@ -804,6 +749,7 @@ class _AiMealPlannerScreenState extends State<AiMealPlannerScreen> {
           .toList(growable: false),
       hasPriceEstimate: hasPriceEstimate,
       notes: noteLines.join('\n'),
+      imageUrl: basket.imageUrl,
     );
   }
 
@@ -833,7 +779,7 @@ class _AiMealPlannerScreenState extends State<AiMealPlannerScreen> {
       labels.add('$localCount local estimate');
     }
     if (prototypeCount > 0) {
-      labels.add('prototype data');
+      labels.add('estimated data');
     }
     if (fallbackCount > 0) labels.add('$fallbackCount calorie-only fallback');
     return labels;
@@ -874,6 +820,122 @@ class _AiMealPlannerScreenState extends State<AiMealPlannerScreen> {
     );
   }
 
+  Future<bool> _confirmLeaveWhileGenerating() async {
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text(
+          'Generation in progress',
+          style: TextStyle(fontWeight: FontWeight.w800),
+        ),
+        content: const Text(
+          'Your meal is still generating. Are you sure you want to go back?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text(
+              'No',
+              style: TextStyle(color: AppTheme.textMid),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Yes'),
+          ),
+        ],
+      ),
+    );
+    return result ?? false;
+  }
+
+  Future<void> _showSavedDialog() async {
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 56,
+                height: 56,
+                decoration: const BoxDecoration(
+                  color: AppTheme.softGreen,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.check,
+                  color: AppTheme.primaryGreen,
+                  size: 28,
+                ),
+              ),
+              const SizedBox(height: 14),
+              const Text(
+                'Meal plan saved successfully',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w800,
+                  color: AppTheme.textDark,
+                ),
+              ),
+              const SizedBox(height: 18),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    Navigator.pop(ctx);
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const MealPlanScreen(),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.list_alt, size: 18),
+                  label: const Text('View My Plan'),
+                ),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text(
+                  'Close',
+                  style: TextStyle(color: AppTheme.textMid),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _askNutribotForBasket(MealBasket basket, _BasketMealDraft draft) {
+    NutribotLauncher.open(
+      context,
+      nutribotContext: NutribotContext(
+        source: NutribotSource.mealPlanner,
+        contextTitle: 'Ask NutriBot',
+        sourceContext: 'AI Meal Planner basket',
+        initialPrompt:
+            'Help me cook or improve "${draft.name}" with these ingredients.',
+        data: {
+          'name': draft.name,
+          'items': basket.itemNames,
+          if (draft.ingredients.isNotEmpty) 'ingredients': draft.ingredients,
+          if (draft.imageUrl != null && draft.imageUrl!.isNotEmpty)
+            'imageUrl': draft.imageUrl,
+          'calories': basket.totalCalories,
+          if (draft.hasPriceEstimate) 'estimatedPricePhp': draft.price,
+        },
+      ),
+    );
+  }
+
   Future<void> _pickAndAnalyzeImage(ImageSource source) async {
     final picker = ImagePicker();
     final pickedFile = await picker.pickImage(source: source, imageQuality: 85);
@@ -888,19 +950,29 @@ class _AiMealPlannerScreenState extends State<AiMealPlannerScreen> {
 
     try {
       final imageBytes = await pickedFile.readAsBytes();
+      if (!mounted) return;
       final analysis = await _groq.analyzeFoodImageBytes(imageBytes);
+      if (!mounted) return;
+      setState(() => _imageAnalysis = analysis);
+    } on PlatformException catch (e) {
       if (mounted) {
-        setState(() => _imageAnalysis = analysis);
+        final code = e.code.toLowerCase();
+        final message = code.contains('camera_access')
+            ? 'Camera access denied. Enable camera permission in Settings, or pick an image from your gallery.'
+            : code.contains('photo_access') || code.contains('gallery')
+                ? 'Photo library access denied. Enable photo permission in Settings.'
+                : 'Could not open the camera. Please try again.';
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+              content: Text(message), backgroundColor: AppTheme.errorRed),
+        );
       }
     } catch (e) {
       if (mounted) {
-        String errorMessage = 'Analysis failed: $e';
+        String errorMessage = 'Something went wrong. Please try again.';
         if (e.toString().contains('API key is missing')) {
           errorMessage =
               'Groq API key is missing. Run Flutter with --dart-define=GROQ_API_KEY=your_key';
-        } else if (e.toString().contains('permission')) {
-          errorMessage =
-              'Camera permission was denied. Please allow camera access or upload an image.';
         }
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -938,6 +1010,79 @@ class _AiMealPlannerScreenState extends State<AiMealPlannerScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildProfileSummaryCard(UserModel user) {
+    final weightLabel = user.weight % 1 == 0
+        ? user.weight.toStringAsFixed(0)
+        : user.weight.toStringAsFixed(1);
+    final heightLabel = user.height % 1 == 0
+        ? user.height.toStringAsFixed(0)
+        : user.height.toStringAsFixed(1);
+    final genderLabel = user.gender.trim().isEmpty
+        ? '—'
+        : user.gender.trim().toLowerCase();
+    final summary =
+        '${user.age} yrs • $weightLabel kg • $heightLabel cm • $genderLabel';
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppTheme.softGreen.withValues(alpha: 0.45),
+        borderRadius: BorderRadius.circular(ModernAppTheme.radiusLg),
+        border: Border.all(color: AppTheme.primaryGreen.withValues(alpha: 0.22)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.6),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(
+              Icons.account_circle_outlined,
+              color: AppTheme.primaryGreen,
+              size: 22,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Using your profile',
+                  style: TextStyle(
+                    color: AppTheme.textDark,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  summary,
+                  style: const TextStyle(
+                    color: AppTheme.textMid,
+                    fontSize: 12,
+                    height: 1.35,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          TextButton.icon(
+            onPressed: _openProfile,
+            icon: const Icon(Icons.edit_outlined, size: 16),
+            label: const Text('Edit'),
+          ),
+        ],
       ),
     );
   }
@@ -1003,14 +1148,80 @@ class _AiMealPlannerScreenState extends State<AiMealPlannerScreen> {
     );
   }
 
+  Widget _buildPreferencesSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _sectionTitle('Meal Style'),
+        const SizedBox(height: 4),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: _mealStyleOptions.map((style) {
+            final selected = _mealStyle == style;
+            return ChoiceChip(
+              label: Text(style),
+              selected: selected,
+              selectedColor: AppTheme.primaryGreen,
+              labelStyle: TextStyle(
+                color: selected ? Colors.white : AppTheme.textDark,
+                fontWeight: FontWeight.w600,
+                fontSize: 13,
+              ),
+              onSelected: (_) => setState(() => _mealStyle = style),
+            );
+          }).toList(),
+        ),
+        const SizedBox(height: 20),
+        _sectionTitle('Avoid'),
+        const SizedBox(height: 4),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: _avoidOptions.map((item) {
+            final selected = _avoidItems.contains(item);
+            return FilterChip(
+              label: Text(item),
+              selected: selected,
+              selectedColor: AppTheme.errorRed.withValues(alpha: 0.13),
+              checkmarkColor: AppTheme.errorRed,
+              labelStyle: TextStyle(
+                color: selected ? AppTheme.errorRed : AppTheme.textDark,
+                fontWeight: FontWeight.w600,
+                fontSize: 13,
+              ),
+              onSelected: (v) => setState(() {
+                if (v) {
+                  _avoidItems.add(item);
+                } else {
+                  _avoidItems.remove(item);
+                }
+              }),
+            );
+          }).toList(),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final user = context.watch<AuthProvider>().userModel;
     final profileStatus = _plannerProfileStatus(user);
-    _syncPlannerFieldsFromProfile(user, profileStatus);
-    final breakfastKeys = MealPlannerFoodData.breakfastGroupKeys();
-    final allKeys = MealPlannerFoodData.allGroupKeys();
 
+    return PopScope(
+      canPop: !_generatingAi,
+      onPopInvokedWithResult: (didPop, _) async {
+        if (didPop) return;
+        final navigator = Navigator.of(context);
+        final shouldLeave = await _confirmLeaveWhileGenerating();
+        if (shouldLeave) navigator.pop();
+      },
+      child: _buildScaffold(user, profileStatus),
+    );
+  }
+
+  Widget _buildScaffold(UserModel? user, _PlannerProfileStatus profileStatus) {
     return Scaffold(
       backgroundColor: ModernAppTheme.bgGreen,
       appBar: AppBar(
@@ -1023,388 +1234,421 @@ class _AiMealPlannerScreenState extends State<AiMealPlannerScreen> {
           ),
         ],
       ),
-      body: Form(
-        key: _formKey,
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
-          children: [
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+        children: [
+          // Hero banner
+          Container(
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              gradient: ModernAppTheme.gradientMint,
+              borderRadius: BorderRadius.circular(ModernAppTheme.radiusXl),
+              boxShadow: ModernAppTheme.shadowSm,
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.48),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: const Icon(
+                    Icons.auto_awesome,
+                    color: ModernAppTheme.primaryGreen,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Text(
+                    'Hi ${user?.name.split(' ').first ?? 'there'} — generate a Davao-friendly meal plan from your profile, budget, and goal. Prices are estimated.',
+                    style: const TextStyle(
+                      color: ModernAppTheme.textDark,
+                      fontSize: 13,
+                      height: 1.45,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // Profile card
+          if (!profileStatus.isComplete) ...[
+            _buildCompleteProfileCard(profileStatus),
+            const SizedBox(height: 16),
+          ] else if (user != null) ...[
+            _buildProfileSummaryCard(user),
+            const SizedBox(height: 16),
+          ],
+
+          // Preferences
+          _buildPreferencesSection(),
+          const SizedBox(height: 20),
+
+          // Plan mode selector
+          _sectionTitle('Plan Mode'),
+          SegmentedButton<_PlanMode>(
+            segments: const [
+              ButtonSegment(
+                value: _PlanMode.daily,
+                label: Text('Daily Plan'),
+                icon: Icon(Icons.today_outlined),
+              ),
+              ButtonSegment(
+                value: _PlanMode.weekly,
+                label: Text('Weekly Plan'),
+                icon: Icon(Icons.calendar_month_outlined),
+              ),
+            ],
+            selected: {_planMode},
+            onSelectionChanged: (s) => setState(() {
+              _planMode = s.first;
+              _plan = null;
+              _weeklyPlans = null;
+              _selectedBasketSlots.clear();
+            }),
+          ),
+          const SizedBox(height: 20),
+
+          // Algorithm picker
+          _sectionTitle('Algorithm'),
+          SegmentedButton<MealPlannerAlgorithm>(
+            segments: const [
+              ButtonSegment(
+                value: MealPlannerAlgorithm.knapsack,
+                label: Text('Knapsack'),
+                icon: Icon(Icons.functions),
+              ),
+              ButtonSegment(
+                value: MealPlannerAlgorithm.randomGreedy,
+                label: Text('Random greedy'),
+                icon: Icon(Icons.shuffle),
+              ),
+            ],
+            selected: {_algorithm},
+            onSelectionChanged: (s) => setState(() => _algorithm = s.first),
+          ),
+          const SizedBox(height: 20),
+
+          // Build button
+          ElevatedButton.icon(
+            onPressed: (_building || _buildingWeekly)
+                ? null
+                : profileStatus.isComplete
+                    ? (_planMode == _PlanMode.daily
+                        ? _buildPlan
+                        : _buildWeeklyPlan)
+                    : () => _showCompleteProfileDialog(profileStatus),
+            icon: (_building || _buildingWeekly)
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2, color: Colors.white),
+                  )
+                : const Icon(Icons.auto_awesome_outlined),
+            label: Text(
+              (_building || _buildingWeekly)
+                  ? 'Generating...'
+                  : _planMode == _PlanMode.daily
+                      ? 'Generate Daily Plan'
+                      : 'Generate Weekly Plan',
+            ),
+          ),
+
+          // Weekly plan results
+          if (_weeklyPlans != null) ...[
+            const SizedBox(height: 24),
+            _buildWeeklyPlanSection(_weeklyPlans!),
+          ],
+
+          // Daily plan results
+          if (_plan != null) ...[
+            const SizedBox(height: 24),
+            _sectionTitle('Your BMR & targets'),
             Container(
-              padding: const EdgeInsets.all(18),
+              width: double.infinity,
+              margin: const EdgeInsets.only(top: 8, bottom: 10),
+              padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                gradient: ModernAppTheme.gradientMint,
-                borderRadius: BorderRadius.circular(ModernAppTheme.radiusXl),
+                color: ModernAppTheme.white,
+                borderRadius: BorderRadius.circular(ModernAppTheme.radiusLg),
+                border: Border.all(color: ModernAppTheme.divider),
                 boxShadow: ModernAppTheme.shadowSm,
               ),
               child: Row(
                 children: [
                   Container(
-                    width: 48,
-                    height: 48,
+                    width: 42,
+                    height: 42,
                     decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.48),
-                      borderRadius: BorderRadius.circular(16),
+                      color: ModernAppTheme.softGreen,
+                      borderRadius: BorderRadius.circular(14),
                     ),
                     child: const Icon(
-                      Icons.auto_awesome,
+                      Icons.local_fire_department_outlined,
                       color: ModernAppTheme.primaryGreen,
                     ),
                   ),
-                  const SizedBox(width: 14),
+                  const SizedBox(width: 12),
                   Expanded(
                     child: Text(
-                      'Hi ${user?.name.split(' ').first ?? 'there'} - build Davao-friendly meal baskets from your profile, budget, and goal. Prices are prototype estimates.',
+                      '${_plan!.bmr.toStringAsFixed(1)} kcal/day target, split across breakfast, lunch, dinner, and snack.',
                       style: const TextStyle(
                         color: ModernAppTheme.textDark,
                         fontSize: 13,
-                        height: 1.45,
-                        fontWeight: FontWeight.w600,
+                        fontWeight: FontWeight.w700,
+                        height: 1.35,
                       ),
                     ),
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: 16),
-            if (!profileStatus.isComplete) ...[
-              _buildCompleteProfileCard(profileStatus),
-              const SizedBox(height: 16),
-            ],
-            _sectionTitle('Units'),
-            SegmentedButton<bool>(
-              segments: const [
-                ButtonSegment(
-                    value: true,
-                    label: Text('Metric'),
-                    icon: Icon(Icons.straighten)),
-                ButtonSegment(
-                    value: false,
-                    label: Text('Imperial'),
-                    icon: Icon(Icons.balance)),
-              ],
-              selected: {_useMetric},
-              onSelectionChanged: (s) => setState(() => _useMetric = s.first),
+            Text(
+              'Estimated BMR: ${_plan!.bmr.toStringAsFixed(1)} kcal/day '
+              '(breakfast 35%, lunch 30%, dinner 25%, snack 10%). '
+              'Estimated local-food cost: PHP ${_plan!.totalEstimatedPricePhp.toStringAsFixed(0)}. '
+              'Macros: ${_plan!.totalProtein}g protein, ${_plan!.totalCarbs}g carbs, ${_plan!.totalFat}g fat.',
+              style: const TextStyle(
+                  fontSize: 13, color: AppTheme.textMid, height: 1.4),
             ),
-            const SizedBox(height: 16),
-            _sectionTitle('Profile'),
-            TextFormField(
-              controller: _ageCtrl,
-              enabled: profileStatus.isComplete,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(labelText: 'Age'),
-              validator: (v) {
-                final age = int.tryParse(v?.trim() ?? '');
-                return age == null || age <= 0 ? 'Enter age' : null;
-              },
-            ),
-            const SizedBox(height: 10),
-            if (_useMetric) ...[
-              TextFormField(
-                controller: _weightCtrl,
-                enabled: profileStatus.isComplete,
-                keyboardType:
-                    const TextInputType.numberWithOptions(decimal: true),
-                decoration: const InputDecoration(labelText: 'Weight (kg)'),
-                validator: (v) {
-                  final weight = double.tryParse(v?.trim() ?? '');
-                  return weight == null || weight <= 0 ? 'Enter weight' : null;
-                },
-              ),
-              const SizedBox(height: 10),
-              TextFormField(
-                controller: _heightCtrl,
-                enabled: profileStatus.isComplete,
-                keyboardType:
-                    const TextInputType.numberWithOptions(decimal: true),
-                decoration: const InputDecoration(labelText: 'Height (cm)'),
-                validator: (v) {
-                  final height = double.tryParse(v?.trim() ?? '');
-                  return height == null || height <= 0 ? 'Enter height' : null;
-                },
-              ),
-            ] else ...[
-              TextFormField(
-                controller: _weightCtrl,
-                enabled: profileStatus.isComplete,
-                keyboardType:
-                    const TextInputType.numberWithOptions(decimal: true),
-                decoration: const InputDecoration(labelText: 'Weight (lb)'),
-                validator: (v) {
-                  final weight = double.tryParse(v?.trim() ?? '');
-                  return weight == null || weight <= 0 ? 'Enter weight' : null;
-                },
-              ),
-              const SizedBox(height: 10),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextFormField(
-                      controller: _heightFtCtrl,
-                      enabled: profileStatus.isComplete,
-                      keyboardType: TextInputType.number,
-                      decoration:
-                          const InputDecoration(labelText: 'Height (ft)'),
-                      validator: (v) {
-                        final feet = int.tryParse(v?.trim() ?? '');
-                        return feet == null || feet < 0 ? 'Enter feet' : null;
-                      },
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: TextFormField(
-                      controller: _heightInCtrl,
-                      enabled: profileStatus.isComplete,
-                      keyboardType: TextInputType.number,
-                      decoration:
-                          const InputDecoration(labelText: 'Height (in)'),
-                      validator: (v) {
-                        final inches = int.tryParse(v?.trim() ?? '');
-                        return inches == null || inches < 0
-                            ? 'Enter inches'
-                            : null;
-                      },
-                    ),
-                  ),
-                ],
-              ),
-            ],
             const SizedBox(height: 12),
-            _sectionTitle('Gender'),
-            SegmentedButton<bool>(
-              segments: const [
-                ButtonSegment(value: true, label: Text('Male')),
-                ButtonSegment(value: false, label: Text('Female')),
-              ],
-              selected: {_isMale},
-              onSelectionChanged: profileStatus.isComplete
-                  ? (s) => setState(() => _isMale = s.first)
-                  : null,
-            ),
+            _buildBasketSelectionSection(_plan!),
             const SizedBox(height: 20),
-            _sectionTitle('Breakfast group preferences (optional)'),
-            const Text(
-              'If you pick none, all breakfast groups are used. Matches Streamlit multiselect on breakfast categories.',
-              style: TextStyle(
-                  fontSize: 11, color: AppTheme.textLight, height: 1.35),
-            ),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: breakfastKeys.map((k) {
-                final selected = _preferredBreakfast.contains(k);
-                return FilterChip(
-                  label: Text(k.replaceAll('_', ' ')),
-                  selected: selected,
-                  onSelected: (v) => setState(() {
-                    if (v) {
-                      _preferredBreakfast.add(k);
-                    } else {
-                      _preferredBreakfast.remove(k);
-                    }
-                  }),
-                );
-              }).toList(),
-            ),
-            const SizedBox(height: 20),
-            _sectionTitle('Exclude groups (allergies / avoid)'),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: allKeys.map((k) {
-                final selected = _excludedGroups.contains(k);
-                return FilterChip(
-                  label: Text(k.replaceAll('_', ' ')),
-                  selected: selected,
-                  selectedColor: AppTheme.errorRed.withValues(alpha: 0.15),
-                  onSelected: (v) => setState(() {
-                    if (v) {
-                      _excludedGroups.add(k);
-                    } else {
-                      _excludedGroups.remove(k);
-                    }
-                  }),
-                );
-              }).toList(),
-            ),
-            const SizedBox(height: 20),
-            _sectionTitle('Algorithm'),
-            SegmentedButton<MealPlannerAlgorithm>(
-              segments: const [
-                ButtonSegment(
-                  value: MealPlannerAlgorithm.knapsack,
-                  label: Text('Knapsack'),
-                  icon: Icon(Icons.functions),
-                ),
-                ButtonSegment(
-                  value: MealPlannerAlgorithm.randomGreedy,
-                  label: Text('Random greedy'),
-                  icon: Icon(Icons.shuffle),
-                ),
-              ],
-              selected: {_algorithm},
-              onSelectionChanged: (s) => setState(() => _algorithm = s.first),
-            ),
-            const SizedBox(height: 20),
-            ElevatedButton.icon(
-              onPressed: _building
+            OutlinedButton.icon(
+              onPressed: (_generatingAi ||
+                      _plan!.baskets.every((basket) => basket.items.isEmpty))
                   ? null
-                  : profileStatus.isComplete
-                      ? _buildPlan
-                      : () => _showCompleteProfileDialog(profileStatus),
-              icon: _building
+                  : _generateAiNarratives,
+              icon: _generatingAi
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.auto_awesome_outlined),
+              label: Text(_generatingAi
+                  ? 'Calling Groq...'
+                  : 'Generate AI meal descriptions (Groq)'),
+            ),
+            if (!_groq.isConfigured)
+              const Padding(
+                padding: EdgeInsets.only(top: 8),
+                child: Text(
+                  'Groq is optional. Build with: --dart-define=GROQ_API_KEY=... '
+                  'Optional: --dart-define=GROQ_MODEL=llama-3.3-70b-versatile',
+                  style: TextStyle(
+                      fontSize: 11, color: AppTheme.textLight, height: 1.35),
+                ),
+              ),
+            if (_aiBreakfast != null) ...[
+              const SizedBox(height: 16),
+              _aiBlock('Breakfast story', _aiBreakfast!),
+            ],
+            if (_aiLunch != null) _aiBlock('Lunch story', _aiLunch!),
+            if (_aiDinner != null) _aiBlock('Dinner story', _aiDinner!),
+            if (_aiSnack != null) _aiBlock('Snack story', _aiSnack!),
+            const SizedBox(height: 24),
+            _sectionTitle('Food Image Analysis'),
+            const Text(
+              'Snap a photo of your meal to get instant AI-powered nutritional analysis!',
+              style: TextStyle(
+                  fontSize: 13, color: AppTheme.textMid, height: 1.4),
+            ),
+            const SizedBox(height: 12),
+            ElevatedButton.icon(
+              onPressed: _analyzingImage ? null : _showImageSourceDialog,
+              icon: _analyzingImage
                   ? const SizedBox(
                       width: 18,
                       height: 18,
                       child: CircularProgressIndicator(
                           strokeWidth: 2, color: Colors.white),
                     )
-                  : const Icon(Icons.shopping_basket_outlined),
-              label: Text(_building ? 'Building...' : 'Create DSS baskets'),
+                  : const Icon(Icons.camera_alt),
+              label:
+                  Text(_analyzingImage ? 'Analyzing...' : 'Scan Food Image'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppTheme.primaryGreen,
+                foregroundColor: Colors.white,
+              ),
             ),
-            const SizedBox(height: 24),
-            _buildRecipeDatasetSection(),
-            if (_plan != null) ...[
-              const SizedBox(height: 24),
-              _sectionTitle('Your BMR & targets'),
+            if (_selectedImageFile != null) ...[
+              const SizedBox(height: 16),
               Container(
+                height: 200,
                 width: double.infinity,
-                margin: const EdgeInsets.only(top: 8, bottom: 10),
-                padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: ModernAppTheme.white,
-                  borderRadius: BorderRadius.circular(ModernAppTheme.radiusLg),
-                  border: Border.all(color: ModernAppTheme.divider),
-                  boxShadow: ModernAppTheme.shadowSm,
+                  borderRadius: BorderRadius.circular(12),
                 ),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 42,
-                      height: 42,
-                      decoration: BoxDecoration(
-                        color: ModernAppTheme.softGreen,
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      child: const Icon(
-                        Icons.local_fire_department_outlined,
-                        color: ModernAppTheme.primaryGreen,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        '${_plan!.bmr.toStringAsFixed(1)} kcal/day target, split across breakfast, lunch, dinner, and snack baskets.',
-                        style: const TextStyle(
-                          color: ModernAppTheme.textDark,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
-                          height: 1.35,
-                        ),
-                      ),
-                    ),
-                  ],
+                child: FutureBuilder<Uint8List>(
+                  future: _selectedImageFile!.readAsBytes(),
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+                    if (snapshot.hasError || !snapshot.hasData) {
+                      return const Center(child: Icon(Icons.error));
+                    }
+                    return Image.memory(snapshot.data!, fit: BoxFit.cover);
+                  },
                 ),
               ),
-              Text(
-                'Estimated BMR: ${_plan!.bmr.toStringAsFixed(1)} kcal/day '
-                '(breakfast 35%, lunch 30%, dinner 25%, snack 10%). '
-                'Estimated local-food cost: PHP ${_plan!.totalEstimatedPricePhp.toStringAsFixed(0)}. '
-                'Macros: ${_plan!.totalProtein}g protein, ${_plan!.totalCarbs}g carbs, ${_plan!.totalFat}g fat.',
-                style: const TextStyle(
-                    fontSize: 13, color: AppTheme.textMid, height: 1.4),
-              ),
-              const SizedBox(height: 12),
-              _buildBasketSelectionSection(_plan!),
-              const SizedBox(height: 20),
-              OutlinedButton.icon(
-                onPressed: (_generatingAi ||
-                        _plan!.baskets.every((basket) => basket.items.isEmpty))
-                    ? null
-                    : _generateAiNarratives,
-                icon: _generatingAi
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.auto_awesome_outlined),
-                label: Text(_generatingAi
-                    ? 'Calling Groq...'
-                    : 'Generate AI meal descriptions (Groq)'),
-              ),
-              if (!_groq.isConfigured)
-                const Padding(
-                  padding: EdgeInsets.only(top: 8),
-                  child: Text(
-                    'Groq is optional. Build with: --dart-define=GROQ_API_KEY=... '
-                    'Optional: --dart-define=GROQ_MODEL=llama-3.3-70b-versatile',
-                    style: TextStyle(
-                        fontSize: 11, color: AppTheme.textLight, height: 1.35),
-                  ),
-                ),
-              if (_aiBreakfast != null) ...[
-                const SizedBox(height: 16),
-                _aiBlock('Breakfast story', _aiBreakfast!),
-              ],
-              if (_aiLunch != null) _aiBlock('Lunch story', _aiLunch!),
-              if (_aiDinner != null) _aiBlock('Dinner story', _aiDinner!),
-              if (_aiSnack != null) _aiBlock('Snack story', _aiSnack!),
-              const SizedBox(height: 24),
-              _sectionTitle('🍽️ Food Image Analysis'),
-              const Text(
-                'Snap a photo of your meal to get instant AI-powered nutritional analysis!',
-                style: TextStyle(
-                    fontSize: 13, color: AppTheme.textMid, height: 1.4),
-              ),
-              const SizedBox(height: 12),
-              ElevatedButton.icon(
-                onPressed: _analyzingImage ? null : _showImageSourceDialog,
-                icon: _analyzingImage
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(
-                            strokeWidth: 2, color: Colors.white),
-                      )
-                    : const Icon(Icons.camera_alt),
-                label:
-                    Text(_analyzingImage ? 'Analyzing...' : 'Scan Food Image'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppTheme.primaryGreen,
-                  foregroundColor: Colors.white,
-                ),
-              ),
-              if (_selectedImageFile != null) ...[
-                const SizedBox(height: 16),
-                Container(
-                  height: 200,
-                  width: double.infinity,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: FutureBuilder<Uint8List>(
-                    future: _selectedImageFile!.readAsBytes(),
-                    builder: (context, snapshot) {
-                      if (snapshot.connectionState == ConnectionState.waiting) {
-                        return const Center(child: CircularProgressIndicator());
-                      }
-                      if (snapshot.hasError || !snapshot.hasData) {
-                        return const Center(child: Icon(Icons.error));
-                      }
-                      return Image.memory(snapshot.data!, fit: BoxFit.cover);
-                    },
-                  ),
-                ),
-              ],
-              if (_imageAnalysis != null) ...[
-                const SizedBox(height: 16),
-                _aiBlock('🍲 Food Analysis', _imageAnalysis!),
-              ],
+            ],
+            if (_imageAnalysis != null) ...[
+              const SizedBox(height: 16),
+              _aiBlock('Food Analysis', _imageAnalysis!),
             ],
           ],
-        ),
+        ],
       ),
+    );
+  }
+
+  Widget _buildWeeklyPlanSection(List<_WeeklyDayPlan> weeklyPlans) {
+    const dayNames = [
+      'Monday',
+      'Tuesday',
+      'Wednesday',
+      'Thursday',
+      'Friday',
+      'Saturday',
+      'Sunday',
+    ];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _sectionTitle('7-Day Meal Plan'),
+        const SizedBox(height: 8),
+        ...weeklyPlans.map((dayPlan) {
+          final dayName = dayNames[dayPlan.date.weekday - 1];
+          final dateLabel =
+              '${dayPlan.date.month}/${dayPlan.date.day}/${dayPlan.date.year}';
+          final plan = dayPlan.plan;
+          final filledBaskets =
+              plan.baskets.where((b) => b.items.isNotEmpty).toList();
+
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: AppTheme.white,
+                borderRadius:
+                    BorderRadius.circular(ModernAppTheme.radiusLg),
+                border: Border.all(color: AppTheme.divider),
+                boxShadow: ModernAppTheme.shadowSm,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: AppTheme.primaryGreen,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          dayName,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        dateLabel,
+                        style: const TextStyle(
+                          color: AppTheme.textMid,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const Spacer(),
+                      Text(
+                        '${plan.totalPlanCalories} kcal · PHP ${plan.totalEstimatedPricePhp.toStringAsFixed(0)}',
+                        style: const TextStyle(
+                          color: AppTheme.textMid,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (filledBaskets.isNotEmpty) ...[
+                    const SizedBox(height: 10),
+                    ...filledBaskets.map((basket) => Padding(
+                          padding: const EdgeInsets.only(bottom: 4),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              SizedBox(
+                                width: 70,
+                                child: Text(
+                                  basket.slot.label,
+                                  style: const TextStyle(
+                                    color: AppTheme.primaryGreen,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                              Expanded(
+                                child: Text(
+                                  basket.itemNames.join(', '),
+                                  style: const TextStyle(
+                                    color: AppTheme.textDark,
+                                    fontSize: 11,
+                                    height: 1.35,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        )),
+                  ] else ...[
+                    const SizedBox(height: 8),
+                    const Text(
+                      'No meals generated for this day.',
+                      style:
+                          TextStyle(color: AppTheme.textLight, fontSize: 12),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          );
+        }),
+        const SizedBox(height: 12),
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton.icon(
+            onPressed: _savingWeekly ? null : _saveWeeklyMealsToLog,
+            icon: _savingWeekly
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2, color: Colors.white),
+                  )
+                : const Icon(Icons.save_outlined),
+            label:
+                Text(_savingWeekly ? 'Saving...' : 'Save Weekly Plan'),
+          ),
+        ),
+      ],
     );
   }
 
@@ -1422,7 +1666,7 @@ class _AiMealPlannerScreenState extends State<AiMealPlannerScreen> {
           children: [
             const Expanded(
               child: Text(
-                'Select baskets to save',
+                'Select meals to save',
                 style: TextStyle(
                   fontSize: 13,
                   color: AppTheme.textDark,
@@ -1431,7 +1675,7 @@ class _AiMealPlannerScreenState extends State<AiMealPlannerScreen> {
               ),
             ),
             Text(
-              '$selectedCount/${availableBaskets.length} selected',
+              '$selectedCount meals selected',
               style: const TextStyle(
                 fontSize: 12,
                 color: AppTheme.primaryGreen,
@@ -1448,7 +1692,7 @@ class _AiMealPlannerScreenState extends State<AiMealPlannerScreen> {
           ),
         ),
         Text(
-          'Total generated: ${plan.totalPlanCalories} kcal - PHP ${plan.totalEstimatedPricePhp.toStringAsFixed(0)} local-food estimate',
+          'Total generated: ${plan.totalPlanCalories} kcal — PHP ${plan.totalEstimatedPricePhp.toStringAsFixed(0)} local-food estimate',
           style: const TextStyle(
             fontSize: 12,
             fontWeight: FontWeight.w600,
@@ -1472,8 +1716,8 @@ class _AiMealPlannerScreenState extends State<AiMealPlannerScreen> {
                 : const Icon(Icons.save_outlined),
             label: Text(
               _savingSelectedBaskets
-                  ? 'Saving selected meals...'
-                  : 'Save Selected Meals to Log',
+                  ? 'Saving...'
+                  : 'Save to Day Plan',
             ),
           ),
         ),
@@ -1622,10 +1866,10 @@ class _AiMealPlannerScreenState extends State<AiMealPlannerScreen> {
                   runSpacing: 6,
                   children: sourceLabels.map((label) {
                     final isFallback = label.contains('fallback');
-                    final isPrototype = label.contains('prototype');
+                    final isEstimated = label.contains('estimated');
                     return _sourceTag(
                       label,
-                      isFallback || isPrototype
+                      isFallback || isEstimated
                           ? AppTheme.orangeAccent
                           : AppTheme.primaryGreen,
                     );
@@ -1635,7 +1879,7 @@ class _AiMealPlannerScreenState extends State<AiMealPlannerScreen> {
               if (basket.items.any((item) => item.isPrototypeEstimate)) ...[
                 const SizedBox(height: 8),
                 const Text(
-                  'Local prices and macros are prototype estimates, not live market prices.',
+                  'Local prices and macros are estimated values, not live market data.',
                   style: TextStyle(
                     color: AppTheme.orangeAccent,
                     fontSize: 11,
@@ -1647,7 +1891,7 @@ class _AiMealPlannerScreenState extends State<AiMealPlannerScreen> {
               if (draft.fallbackItems.isNotEmpty) ...[
                 const SizedBox(height: 8),
                 const Text(
-                  'Fallback items are calorie-only prototype estimates and are not counted toward strict budget totals.',
+                  'Fallback items use estimated calorie values and are not counted toward strict budget totals.',
                   style: TextStyle(
                     color: AppTheme.orangeAccent,
                     fontSize: 11,
@@ -1664,409 +1908,26 @@ class _AiMealPlannerScreenState extends State<AiMealPlannerScreen> {
                   children: shownIngredients.map(_recipeTag).toList(),
                 ),
               ],
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildRecipeDatasetSection() {
-    final filtered = _filteredRecipes;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _sectionTitle('Recipe dataset'),
-        const Text(
-          RecipeDatasetService.prototypeDisclosure,
-          style: TextStyle(
-            fontSize: 11,
-            color: AppTheme.textLight,
-            height: 1.35,
-          ),
-        ),
-        const SizedBox(height: 12),
-        if (_recipesLoading)
-          _recipeStateBox(
-            icon: Icons.sync,
-            child: const Row(
-              children: [
-                SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                ),
-                SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    'Loading recipe dataset...',
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: AppTheme.textMid,
-                      fontWeight: FontWeight.w600,
+              if (basket.items.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton.icon(
+                    onPressed: () => _askNutribotForBasket(basket, draft),
+                    icon: const Icon(Icons.smart_toy_outlined, size: 16),
+                    label: const Text('Ask NutriBot'),
+                    style: TextButton.styleFrom(
+                      foregroundColor: AppTheme.primaryGreen,
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 4),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     ),
                   ),
                 ),
               ],
-            ),
-          )
-        else if (_recipesError != null)
-          _recipeStateBox(
-            icon: Icons.info_outline,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  _recipesError!,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    color: AppTheme.textMid,
-                    height: 1.35,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                OutlinedButton.icon(
-                  onPressed: () => _loadRecipeDataset(forceReload: true),
-                  icon: const Icon(Icons.refresh, size: 16),
-                  label: const Text('Retry'),
-                ),
-              ],
-            ),
-          )
-        else ...[
-          _buildRecipeFilters(),
-          const SizedBox(height: 12),
-          Text(
-            'Showing ${filtered.length} of ${_recipes.length} recipes',
-            style: const TextStyle(
-              fontSize: 12,
-              color: AppTheme.textMid,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 10),
-          if (filtered.isEmpty)
-            _recipeStateBox(
-              icon: Icons.search_off,
-              child: const Text(
-                'No recipes match these filters. Try a wider calorie, price, ingredient, diet, or health-label search.',
-                style: TextStyle(
-                  fontSize: 13,
-                  color: AppTheme.textMid,
-                  height: 1.35,
-                ),
-              ),
-            )
-          else ...[
-            ...filtered.take(8).map(_buildRecipeCard),
-            if (filtered.length > 8)
-              const Padding(
-                padding: EdgeInsets.only(top: 4),
-                child: Text(
-                  'Refine filters to narrow the recipe list.',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: AppTheme.textLight,
-                    height: 1.35,
-                  ),
-                ),
-              ),
-          ],
-        ],
-      ],
-    );
-  }
-
-  Widget _recipeStateBox({
-    required IconData icon,
-    required Widget child,
-  }) =>
-      Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: AppTheme.white,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: AppTheme.divider),
-          boxShadow: ModernAppTheme.shadowSm,
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(icon, color: AppTheme.primaryGreen, size: 20),
-            const SizedBox(width: 10),
-            Expanded(child: child),
-          ],
-        ),
-      );
-
-  Widget _buildRecipeFilters() {
-    const mealTypes = ['all', 'breakfast', 'lunch', 'dinner', 'snack'];
-    final hasFilters = _recipeSearchCtrl.text.trim().isNotEmpty ||
-        _recipeMaxCaloriesCtrl.text.trim().isNotEmpty ||
-        _recipeMaxPriceCtrl.text.trim().isNotEmpty ||
-        _recipeMealTypeFilter != 'all' ||
-        _recipeDietFilters.isNotEmpty ||
-        _recipeHealthFilters.isNotEmpty;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        TextField(
-          controller: _recipeSearchCtrl,
-          decoration: const InputDecoration(
-            labelText: 'Search recipes, ingredients, diets, or health labels',
-            prefixIcon: Icon(Icons.search),
-          ),
-        ),
-        const SizedBox(height: 10),
-        Row(
-          children: [
-            Expanded(
-              child: TextField(
-                controller: _recipeMaxCaloriesCtrl,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
-                  labelText: 'Max kcal',
-                  prefixIcon: Icon(Icons.local_fire_department_outlined),
-                ),
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: TextField(
-                controller: _recipeMaxPriceCtrl,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
-                  labelText: 'Max PHP',
-                  prefixIcon: Icon(Icons.payments_outlined),
-                ),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 10),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: mealTypes.map((mealType) {
-            final selected = _recipeMealTypeFilter == mealType;
-            return ChoiceChip(
-              label: Text(_titleCase(mealType)),
-              selected: selected,
-              onSelected: (_) =>
-                  setState(() => _recipeMealTypeFilter = mealType),
-            );
-          }).toList(),
-        ),
-        if (_availableDietLabels.isNotEmpty) ...[
-          const SizedBox(height: 12),
-          _buildRecipeLabelFilters(
-            title: 'Diet labels',
-            labels: _availableDietLabels.take(8).toList(),
-            selected: _recipeDietFilters,
-          ),
-        ],
-        if (_availableHealthLabels.isNotEmpty) ...[
-          const SizedBox(height: 12),
-          _buildRecipeLabelFilters(
-            title: 'Health labels',
-            labels: _availableHealthLabels.take(8).toList(),
-            selected: _recipeHealthFilters,
-          ),
-        ],
-        if (hasFilters) ...[
-          const SizedBox(height: 8),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: TextButton.icon(
-              onPressed: () {
-                setState(() {
-                  _recipeSearchCtrl.clear();
-                  _recipeMaxCaloriesCtrl.clear();
-                  _recipeMaxPriceCtrl.clear();
-                  _recipeMealTypeFilter = 'all';
-                  _recipeDietFilters.clear();
-                  _recipeHealthFilters.clear();
-                });
-              },
-              icon: const Icon(Icons.clear_all, size: 16),
-              label: const Text('Clear filters'),
-            ),
-          ),
-        ],
-      ],
-    );
-  }
-
-  Widget _buildRecipeLabelFilters({
-    required String title,
-    required List<String> labels,
-    required Set<String> selected,
-  }) =>
-      Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            title,
-            style: const TextStyle(
-              fontSize: 12,
-              color: AppTheme.textMid,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: labels.map((label) {
-              final isSelected = selected.contains(label);
-              return FilterChip(
-                label: Text(label),
-                selected: isSelected,
-                onSelected: (value) {
-                  setState(() {
-                    if (value) {
-                      selected.add(label);
-                    } else {
-                      selected.remove(label);
-                    }
-                  });
-                },
-              );
-            }).toList(),
-          ),
-        ],
-      );
-
-  Widget _buildRecipeCard(RecipeModel recipe) {
-    final saving = _savingRecipeIds.contains(recipe.id);
-
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: AppTheme.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppTheme.divider),
-        boxShadow: ModernAppTheme.shadowSm,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: AppTheme.softGreen,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Center(
-                  child: Text(
-                    recipe.mealEmoji,
-                    style: const TextStyle(fontSize: 19),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      recipe.name,
-                      style: const TextStyle(
-                        fontSize: 14,
-                        color: AppTheme.textDark,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      recipe.mealTypeLabel,
-                      style: const TextStyle(
-                        fontSize: 11,
-                        color: AppTheme.primaryGreen,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 8),
-              OutlinedButton.icon(
-                onPressed: saving ? null : () => _saveRecipeToMealLog(recipe),
-                icon: saving
-                    ? const SizedBox(
-                        width: 14,
-                        height: 14,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.bookmark_add_outlined, size: 16),
-                label: Text(saving ? 'Saving' : 'Save'),
-              ),
             ],
           ),
-          if (recipe.description.isNotEmpty) ...[
-            const SizedBox(height: 10),
-            Text(
-              recipe.description,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                fontSize: 12,
-                color: AppTheme.textMid,
-                height: 1.35,
-              ),
-            ),
-          ],
-          const SizedBox(height: 10),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              _recipeMetric('${recipe.calories}', 'kcal'),
-              if (recipe.hasPriceEstimate)
-                _recipeMetric(
-                  'P${recipe.estimatedPricePhp.toStringAsFixed(0)}',
-                  'est.',
-                ),
-              if (recipe.protein > 0)
-                _recipeMetric('${recipe.protein}g', 'protein'),
-              if (recipe.carbs > 0) _recipeMetric('${recipe.carbs}g', 'carbs'),
-              if (recipe.fat > 0) _recipeMetric('${recipe.fat}g', 'fat'),
-            ],
-          ),
-          if (recipe.ingredients.isNotEmpty) ...[
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 6,
-              runSpacing: 6,
-              children: recipe.ingredients
-                  .take(5)
-                  .map((ingredient) => _recipeTag(ingredient))
-                  .toList(),
-            ),
-          ],
-          if (recipe.dietLabels.isNotEmpty || recipe.healthLabels.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: Wrap(
-                spacing: 6,
-                runSpacing: 6,
-                children: [
-                  ...recipe.dietLabels.take(3).map(_recipeLabelTag),
-                  ...recipe.healthLabels.take(3).map(_recipeLabelTag),
-                ],
-              ),
-            ),
-        ],
+        ),
       ),
     );
   }
@@ -2134,35 +1995,6 @@ class _AiMealPlannerScreenState extends State<AiMealPlannerScreen> {
         ),
       );
 
-  Widget _recipeLabelTag(String text) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        decoration: BoxDecoration(
-          color: AppTheme.primaryGreen.withValues(alpha: 0.08),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(
-            color: AppTheme.primaryGreen.withValues(alpha: 0.18),
-          ),
-        ),
-        child: Text(
-          text,
-          style: const TextStyle(
-            fontSize: 10,
-            color: AppTheme.textMid,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-      );
-
-  String _titleCase(String value) {
-    if (value.isEmpty) return value;
-    return value
-        .split('_')
-        .map((part) => part.isEmpty
-            ? part
-            : '${part[0].toUpperCase()}${part.substring(1)}')
-        .join(' ');
-  }
-
   Widget _sectionTitle(String t) => Padding(
         padding: const EdgeInsets.only(bottom: 8),
         child: Text(
@@ -2210,6 +2042,14 @@ class _AiMealPlannerScreenState extends State<AiMealPlannerScreen> {
 
 enum _DuplicateBasketAction { skip, replace }
 
+enum _PlanMode { daily, weekly }
+
+class _WeeklyDayPlan {
+  const _WeeklyDayPlan(this.date, this.plan);
+  final DateTime date;
+  final DailyMealPlan plan;
+}
+
 class _PlannerProfileStatus {
   const _PlannerProfileStatus(this.missingFields);
 
@@ -2239,6 +2079,7 @@ class _BasketMealDraft {
     required this.fallbackItems,
     required this.hasPriceEstimate,
     required this.notes,
+    required this.imageUrl,
   });
 
   final PlannerMealSlot slot;
@@ -2254,4 +2095,5 @@ class _BasketMealDraft {
   final List<String> fallbackItems;
   final bool hasPriceEstimate;
   final String notes;
+  final String? imageUrl;
 }

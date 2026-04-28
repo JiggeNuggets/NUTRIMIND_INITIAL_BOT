@@ -5,9 +5,11 @@ import '../../theme/app_theme.dart';
 import '../../theme/modern_app_theme.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/community_provider.dart';
+import '../../services/firestore_service.dart';
 import '../../models/post_model.dart';
 import '../../widgets/notification_bell.dart';
 import '../../widgets/post_report_dialog.dart';
+import '../../widgets/safe_image.dart';
 import '../../widgets/state_views.dart';
 import 'create_post_screen.dart';
 import 'post_detail_screen.dart';
@@ -176,24 +178,15 @@ class _ComposerCard extends StatelessWidget {
           padding: const EdgeInsets.all(16),
           child: Row(
             children: [
-              CircleAvatar(
+              SafeAvatar(
                 radius: 22,
-                backgroundColor: AppTheme.softGreen,
-                backgroundImage: user?.photoUrl != null
-                    ? NetworkImage(user!.photoUrl!)
-                    : null,
-                child: user?.photoUrl == null
-                    ? Text(
-                        user?.name.isNotEmpty == true
-                            ? user!.name[0].toUpperCase()
-                            : 'U',
-                        style: const TextStyle(
-                          color: AppTheme.primaryGreen,
-                          fontWeight: FontWeight.w800,
-                          fontSize: 16,
-                        ),
-                      )
-                    : null,
+                photoUrl: user?.photoUrl,
+                displayName: user?.name ?? 'U',
+                textStyle: const TextStyle(
+                  color: AppTheme.primaryGreen,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 16,
+                ),
               ),
               const SizedBox(width: 12),
               const Expanded(
@@ -246,7 +239,6 @@ class _PostCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final currentUser = context.read<AuthProvider>().userModel;
     final uid = currentUser?.uid ?? '';
-    final isLiked = post.isLikedBy(uid);
 
     return Material(
       color: ModernAppTheme.white,
@@ -267,20 +259,15 @@ class _PostCard extends StatelessWidget {
                 children: [
                   GestureDetector(
                     onTap: () => _openAuthorProfile(context),
-                    child: CircleAvatar(
+                    child: SafeAvatar(
                       radius: 18,
-                      backgroundColor: AppTheme.softGreen,
-                      backgroundImage: post.userPhotoUrl != null
-                          ? NetworkImage(post.userPhotoUrl!)
-                          : null,
-                      child: post.userPhotoUrl == null
-                          ? Text(
-                              post.userName.isNotEmpty ? post.userName[0] : '?',
-                              style: const TextStyle(
-                                  color: AppTheme.primaryGreen,
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 14))
-                          : null,
+                      photoUrl: post.userPhotoUrl,
+                      displayName: post.userName,
+                      textStyle: const TextStyle(
+                        color: AppTheme.primaryGreen,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
+                      ),
                     ),
                   ),
                   const SizedBox(width: 10),
@@ -393,22 +380,15 @@ class _PostCard extends StatelessWidget {
               ],
 
               // Image placeholder
-              if (post.imageUrl != null) ...[
+              if (post.imageUrl?.trim().isNotEmpty == true) ...[
                 const SizedBox(height: 10),
-                ClipRRect(
+                SafeFoodImage(
+                  imageUrl: post.imageUrl,
+                  height: 180,
+                  width: double.infinity,
                   borderRadius: BorderRadius.circular(12),
-                  child: Image.network(
-                    post.imageUrl!,
-                    height: 180,
-                    width: double.infinity,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => Container(
-                      height: 120,
-                      color: AppTheme.softGreen,
-                      child: const Icon(Icons.image_outlined,
-                          color: AppTheme.accentGreen, size: 40),
-                    ),
-                  ),
+                  placeholderIcon: Icons.image_outlined,
+                  placeholderColor: AppTheme.accentGreen,
                 ),
               ],
 
@@ -417,27 +397,43 @@ class _PostCard extends StatelessWidget {
               // Action row
               Row(
                 children: [
-                  GestureDetector(
-                    onTap: () => context
-                        .read<CommunityProvider>()
-                        .toggleLike(post, currentUser),
-                    child: Row(
-                      children: [
-                        Icon(
-                          isLiked ? Icons.favorite : Icons.favorite_border,
-                          size: 18,
-                          color: isLiked ? Colors.red : AppTheme.textMid,
+                  StreamBuilder<bool>(
+                    stream: uid.isEmpty
+                        ? Stream.value(false)
+                        : FirestoreService()
+                            .isPostLikedByStream(post.id, uid),
+                    builder: (context, snapshot) {
+                      final isLiked = snapshot.data ?? false;
+                      return GestureDetector(
+                        onTap: uid.isEmpty
+                            ? null
+                            : () => context
+                                .read<CommunityProvider>()
+                                .toggleLike(post, currentUser),
+                        child: Row(
+                          children: [
+                            Icon(
+                              isLiked
+                                  ? Icons.favorite
+                                  : Icons.favorite_border,
+                              size: 18,
+                              color:
+                                  isLiked ? Colors.red : AppTheme.textMid,
+                            ),
+                            const SizedBox(width: 4),
+                            Text('${post.likeCount}',
+                                style: TextStyle(
+                                    fontSize: 12,
+                                    color: isLiked
+                                        ? Colors.red
+                                        : AppTheme.textMid,
+                                    fontWeight: isLiked
+                                        ? FontWeight.w700
+                                        : FontWeight.w400)),
+                          ],
                         ),
-                        const SizedBox(width: 4),
-                        Text('${post.likeCount}',
-                            style: TextStyle(
-                                fontSize: 12,
-                                color: isLiked ? Colors.red : AppTheme.textMid,
-                                fontWeight: isLiked
-                                    ? FontWeight.w700
-                                    : FontWeight.w400)),
-                      ],
-                    ),
+                      );
+                    },
                   ),
                   const SizedBox(width: 18),
                   Row(
@@ -495,18 +491,57 @@ class _PostCard extends StatelessWidget {
                 title: const Text('Delete Post',
                     style: TextStyle(
                         color: AppTheme.errorRed, fontWeight: FontWeight.w600)),
-                onTap: () async {
+                onTap: () {
                   Navigator.pop(context);
-                  try {
-                    await context.read<CommunityProvider>().deletePost(post.id);
-                  } catch (_) {
-                    return;
-                  }
-                  if (!context.mounted) return;
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                    content: Text('Post deleted'),
-                    behavior: SnackBarBehavior.floating,
-                  ));
+                  showDialog<void>(
+                    context: context,
+                    builder: (dialogCtx) => AlertDialog(
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(20)),
+                      title: const Text('Delete Post',
+                          style: TextStyle(fontWeight: FontWeight.w800)),
+                      content: const Text(
+                          'Are you sure you want to delete this post?'),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(dialogCtx),
+                          child: const Text('Cancel',
+                              style: TextStyle(color: AppTheme.textMid)),
+                        ),
+                        TextButton(
+                          onPressed: () async {
+                            Navigator.pop(dialogCtx);
+                            try {
+                              await context
+                                  .read<CommunityProvider>()
+                                  .deletePost(
+                                      post.id, currentUser?.uid ?? '');
+                            } catch (_) {
+                              if (!context.mounted) return;
+                              ScaffoldMessenger.of(context)
+                                  .showSnackBar(const SnackBar(
+                                content:
+                                    Text('Could not delete post.'),
+                                backgroundColor: AppTheme.errorRed,
+                                behavior: SnackBarBehavior.floating,
+                              ));
+                              return;
+                            }
+                            if (!context.mounted) return;
+                            ScaffoldMessenger.of(context)
+                                .showSnackBar(const SnackBar(
+                              content: Text('Post deleted successfully.'),
+                              behavior: SnackBarBehavior.floating,
+                            ));
+                          },
+                          child: const Text('Delete',
+                              style: TextStyle(
+                                  color: AppTheme.errorRed,
+                                  fontWeight: FontWeight.w700)),
+                        ),
+                      ],
+                    ),
+                  );
                 },
               )
             else

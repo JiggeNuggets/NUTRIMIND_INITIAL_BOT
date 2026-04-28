@@ -40,6 +40,9 @@ class FirestoreService {
   // ─── USER ───────────────────────────────────────
 
   Future<void> createUser(UserModel user) async {
+    if (user.uid.isEmpty) {
+      throw ArgumentError('Firestore write requires non-empty user id');
+    }
     await _users.doc(user.uid).set(user.toMap());
   }
 
@@ -50,6 +53,7 @@ class FirestoreService {
   }
 
   Stream<UserModel?> userStream(String uid) {
+    if (uid.isEmpty) return Stream.value(null);
     return _users.doc(uid).snapshots().map((doc) {
       if (!doc.exists) return null;
       return UserModel.fromMap(doc.data() as Map<String, dynamic>);
@@ -67,6 +71,7 @@ class FirestoreService {
   // Notifications
 
   Stream<List<NotificationModel>> notificationsStream(String uid) {
+    if (uid.isEmpty) return Stream.value(const <NotificationModel>[]);
     return _notifications(uid)
         .orderBy('createdAt', descending: true)
         .limit(100)
@@ -78,6 +83,7 @@ class FirestoreService {
   }
 
   Stream<int> unreadNotificationCountStream(String uid) {
+    if (uid.isEmpty) return Stream.value(0);
     return _notifications(uid)
         .where('isRead', isEqualTo: false)
         .snapshots()
@@ -122,14 +128,17 @@ class FirestoreService {
   // Follows
 
   Stream<int> followersCountStream(String uid) {
+    if (uid.isEmpty) return Stream.value(0);
     return _followers(uid).snapshots().map((snapshot) => snapshot.docs.length);
   }
 
   Stream<int> followingCountStream(String uid) {
+    if (uid.isEmpty) return Stream.value(0);
     return _following(uid).snapshots().map((snapshot) => snapshot.docs.length);
   }
 
   Stream<bool> isFollowingStream(String currentUid, String targetUid) {
+    if (currentUid.isEmpty || targetUid.isEmpty) return Stream.value(false);
     return _following(currentUid)
         .doc(targetUid)
         .snapshots()
@@ -177,6 +186,7 @@ class FirestoreService {
   // ─── MEALS ──────────────────────────────────────
 
   Stream<List<MealModel>> mealsStream(String uid, DateTime date) {
+    if (uid.isEmpty) return Stream.value(const <MealModel>[]);
     final start = DateTime(date.year, date.month, date.day);
     final end = start.add(const Duration(days: 1));
     return _meals(uid)
@@ -190,6 +200,7 @@ class FirestoreService {
   }
 
   Future<List<MealModel>> getMealsForDate(String uid, DateTime date) async {
+    if (uid.isEmpty) return const <MealModel>[];
     final start = DateTime(date.year, date.month, date.day);
     final end = start.add(const Duration(days: 1));
     final snap = await _meals(uid)
@@ -203,6 +214,9 @@ class FirestoreService {
   }
 
   Future<void> logMeal(String uid, String mealId) async {
+    if (uid.isEmpty || mealId.isEmpty) {
+      throw ArgumentError('logMeal requires non-empty uid and mealId');
+    }
     await _meals(uid).doc(mealId).update({
       'status': MealStatus.logged.name,
       'loggedAt': Timestamp.fromDate(DateTime.now()),
@@ -210,6 +224,12 @@ class FirestoreService {
   }
 
   Future<void> addMeal(MealModel meal) async {
+    if (meal.userId.isEmpty) {
+      throw ArgumentError('Firestore write requires non-empty user id');
+    }
+    if (meal.id.isEmpty) {
+      throw ArgumentError('Firestore write requires non-empty meal id');
+    }
     await _meals(meal.userId).doc(meal.id).set(meal.toMap());
   }
 
@@ -225,6 +245,7 @@ class FirestoreService {
   // Pantry
 
   Stream<List<PantryItemModel>> pantryItemsStream(String uid) {
+    if (uid.isEmpty) return Stream.value(const <PantryItemModel>[]);
     return _pantryItems(uid)
         .orderBy('updatedAt', descending: true)
         .snapshots()
@@ -242,6 +263,9 @@ class FirestoreService {
     required String category,
     required bool isPalengkeItem,
   }) async {
+    if (uid.isEmpty) {
+      throw ArgumentError('Firestore write requires non-empty user id');
+    }
     final id = _uuid.v4();
     final now = DateTime.now();
     final item = PantryItemModel(
@@ -268,6 +292,9 @@ class FirestoreService {
     required String category,
     required bool isPalengkeItem,
   }) async {
+    if (uid.isEmpty) {
+      throw ArgumentError('Firestore write requires non-empty user id');
+    }
     await _pantryItems(uid).doc(itemId).update({
       'name': name.trim(),
       'quantity': quantity,
@@ -286,6 +313,7 @@ class FirestoreService {
   // Scanned item history
 
   Stream<List<ScannedItemModel>> listenToScannedItems(String uid) {
+    if (uid.isEmpty) return Stream.value(const <ScannedItemModel>[]);
     return _scannedItems(uid)
         .orderBy('createdAt', descending: true)
         .limit(100)
@@ -310,6 +338,9 @@ class FirestoreService {
   }) async {
     if (name.trim().isEmpty || calories <= 0 || price <= 0) {
       throw ArgumentError('Scanned items require name, calories, and price.');
+    }
+    if (uid.isEmpty) {
+      throw ArgumentError('Firestore write requires non-empty user id');
     }
 
     final id = _uuid.v4();
@@ -348,6 +379,7 @@ class FirestoreService {
   }
 
   Stream<List<PostModel>> userPostsStream(String uid) {
+    if (uid.isEmpty) return Stream.value(const <PostModel>[]);
     return _posts.where('userId', isEqualTo: uid).limit(50).snapshots().map(
         (snapshot) => snapshot.docs
             .map((doc) => PostModel.fromMap(doc.data() as Map<String, dynamic>))
@@ -380,8 +412,24 @@ class FirestoreService {
     return id;
   }
 
-  Future<void> deletePost(String postId) async {
-    await _posts.doc(postId).delete();
+  Future<void> deletePost(String postId, String uid) async {
+    final postRef = _posts.doc(postId);
+
+    await _db.runTransaction((transaction) async {
+      final postDoc = await transaction.get(postRef);
+
+      if (!postDoc.exists) {
+        throw StateError('Post not found.');
+      }
+
+      final data = postDoc.data() as Map<String, dynamic>;
+
+      if (data['userId'] != uid) {
+        throw StateError('Only the author can delete this post.');
+      }
+
+      transaction.delete(postRef);
+    });
   }
 
   // ─── LIKES (Scalable Subcollection) ─────────────
@@ -459,6 +507,12 @@ class FirestoreService {
     return legacyLikes.contains(uid);
   }
 
+  /// Stream that emits true/false when a user's like status changes on a post.
+  Stream<bool> isPostLikedByStream(String postId, String uid) {
+    if (uid.isEmpty) return Stream.value(false);
+    return _likes(postId).doc(uid).snapshots().map((doc) => doc.exists);
+  }
+
   /// Get like count for a post (uses likeCount field, fallback to legacy array).
   Future<int> getLikeCount(String postId) async {
     final postDoc = await _posts.doc(postId).get();
@@ -534,6 +588,9 @@ class FirestoreService {
   }
 
   Future<void> addComment(CommentModel comment) async {
+    if (comment.userId.isEmpty) {
+      throw ArgumentError('Firestore write requires non-empty user id');
+    }
     final id = _uuid.v4();
     final newComment = CommentModel(
       id: id,

@@ -3,8 +3,10 @@ import 'package:provider/provider.dart';
 import '../../theme/app_theme.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/community_provider.dart';
+import '../../services/firestore_service.dart';
 import '../../models/post_model.dart';
 import '../../widgets/post_report_dialog.dart';
+import '../../widgets/safe_image.dart';
 import 'user_profile_screen.dart';
 
 class PostDetailScreen extends StatefulWidget {
@@ -112,19 +114,56 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                     fontWeight: FontWeight.w600,
                   ),
                 ),
-                onTap: () async {
+                onTap: () {
                   Navigator.pop(context);
-                  try {
-                    await context.read<CommunityProvider>().deletePost(post.id);
-                  } catch (_) {
-                    return;
-                  }
-                  if (!mounted) return;
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Post deleted'),
-                      behavior: SnackBarBehavior.floating,
+                  showDialog<void>(
+                    context: context,
+                    builder: (dialogCtx) => AlertDialog(
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(20)),
+                      title: const Text('Delete Post',
+                          style: TextStyle(fontWeight: FontWeight.w800)),
+                      content: const Text(
+                          'Are you sure you want to delete this post?'),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(dialogCtx),
+                          child: const Text('Cancel',
+                              style: TextStyle(color: AppTheme.textMid)),
+                        ),
+                        TextButton(
+                          onPressed: () async {
+                            Navigator.pop(dialogCtx);
+                            try {
+                              await context
+                                  .read<CommunityProvider>()
+                                  .deletePost(
+                                      post.id, currentUser?.uid ?? '');
+                            } catch (_) {
+                              if (!mounted) return;
+                              ScaffoldMessenger.of(context)
+                                  .showSnackBar(const SnackBar(
+                                content:
+                                    Text('Could not delete post.'),
+                                backgroundColor: AppTheme.errorRed,
+                                behavior: SnackBarBehavior.floating,
+                              ));
+                              return;
+                            }
+                            if (!mounted) return;
+                            Navigator.pop(context);
+                            ScaffoldMessenger.of(context)
+                                .showSnackBar(const SnackBar(
+                              content: Text('Post deleted successfully.'),
+                              behavior: SnackBarBehavior.floating,
+                            ));
+                          },
+                          child: const Text('Delete',
+                              style: TextStyle(
+                                  color: AppTheme.errorRed,
+                                  fontWeight: FontWeight.w700)),
+                        ),
+                      ],
                     ),
                   );
                 },
@@ -210,21 +249,14 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                   children: [
                     GestureDetector(
                       onTap: () => _openAuthorProfile(post),
-                      child: CircleAvatar(
+                      child: SafeAvatar(
                         radius: 20,
-                        backgroundColor: AppTheme.softGreen,
-                        backgroundImage: post.userPhotoUrl != null
-                            ? NetworkImage(post.userPhotoUrl!)
-                            : null,
-                        child: post.userPhotoUrl == null
-                            ? Text(
-                                post.userName.isNotEmpty
-                                    ? post.userName[0]
-                                    : '?',
-                                style: const TextStyle(
-                                    color: AppTheme.primaryGreen,
-                                    fontWeight: FontWeight.w700))
-                            : null,
+                        photoUrl: post.userPhotoUrl,
+                        displayName: post.userName,
+                        textStyle: const TextStyle(
+                          color: AppTheme.primaryGreen,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -307,18 +339,15 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                   ),
                 ],
 
-                if (post.imageUrl != null) ...[
+                if (post.imageUrl?.trim().isNotEmpty == true) ...[
                   const SizedBox(height: 14),
-                  ClipRRect(
+                  SafeFoodImage(
+                    imageUrl: post.imageUrl,
+                    width: double.infinity,
+                    height: 160,
                     borderRadius: BorderRadius.circular(14),
-                    child: Image.network(post.imageUrl!,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => Container(
-                              height: 160,
-                              color: AppTheme.softGreen,
-                              child: const Icon(Icons.image_outlined,
-                                  color: AppTheme.accentGreen, size: 40),
-                            )),
+                    placeholderIcon: Icons.image_outlined,
+                    placeholderColor: AppTheme.accentGreen,
                   ),
                 ],
 
@@ -327,31 +356,42 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                 // Like button
                 Row(
                   children: [
-                    GestureDetector(
-                      onTap: () => context
-                          .read<CommunityProvider>()
-                          .toggleLike(post, currentUser),
-                      child: Row(
-                        children: [
-                          Icon(
-                            post.isLikedBy(uid)
-                                ? Icons.favorite
-                                : Icons.favorite_border,
-                            color: post.isLikedBy(uid)
-                                ? Colors.red
-                                : AppTheme.textMid,
-                            size: 20,
+                    StreamBuilder<bool>(
+                      stream: uid.isEmpty
+                          ? Stream.value(false)
+                          : FirestoreService()
+                              .isPostLikedByStream(post.id, uid),
+                      builder: (context, snapshot) {
+                        final isLiked = snapshot.data ?? false;
+                        return GestureDetector(
+                          onTap: uid.isEmpty
+                              ? null
+                              : () => context
+                                  .read<CommunityProvider>()
+                                  .toggleLike(post, currentUser),
+                          child: Row(
+                            children: [
+                              Icon(
+                                isLiked
+                                    ? Icons.favorite
+                                    : Icons.favorite_border,
+                                color: isLiked
+                                    ? Colors.red
+                                    : AppTheme.textMid,
+                                size: 20,
+                              ),
+                              const SizedBox(width: 6),
+                              Text('${post.likeCount} likes',
+                                  style: TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                      color: isLiked
+                                          ? Colors.red
+                                          : AppTheme.textMid)),
+                            ],
                           ),
-                          const SizedBox(width: 6),
-                          Text('${post.likeCount} likes',
-                              style: TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w600,
-                                  color: post.isLikedBy(uid)
-                                      ? Colors.red
-                                      : AppTheme.textMid)),
-                        ],
-                      ),
+                        );
+                      },
                     ),
                     const SizedBox(width: 20),
                     Row(children: [
@@ -499,18 +539,15 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          CircleAvatar(
+          SafeAvatar(
             radius: 15,
-            backgroundColor: AppTheme.softGreen,
-            backgroundImage:
-                c.userPhotoUrl != null ? NetworkImage(c.userPhotoUrl!) : null,
-            child: c.userPhotoUrl == null
-                ? Text(c.userName.isNotEmpty ? c.userName[0] : '?',
-                    style: const TextStyle(
-                        color: AppTheme.primaryGreen,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 11))
-                : null,
+            photoUrl: c.userPhotoUrl,
+            displayName: c.userName,
+            textStyle: const TextStyle(
+              color: AppTheme.primaryGreen,
+              fontWeight: FontWeight.w700,
+              fontSize: 11,
+            ),
           ),
           const SizedBox(width: 10),
           Expanded(

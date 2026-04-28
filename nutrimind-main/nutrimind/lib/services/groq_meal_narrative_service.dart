@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 import 'dart:developer' as developer;
@@ -6,6 +7,10 @@ import 'package:http/http.dart' as http;
 
 import '../models/meal_planner_models.dart';
 import 'meal_planner_prompts.dart';
+
+const Duration _kGroqTimeout = Duration(seconds: 30);
+const String _kGroqUnavailableMessage =
+    'AI is temporarily unavailable. Please try again.';
 
 /// Groq OpenAI-compatible chat API.
 ///
@@ -62,40 +67,64 @@ class GroqMealNarrativeService {
         ),
     };
 
-    final res = await _client.post(
-      Uri.parse(_url),
-      headers: {
-        'Authorization': 'Bearer $apiKey',
-        'Content-Type': 'application/json',
-      },
-      body: jsonEncode({
-        'model': model,
-        'messages': [
-          {'role': 'user', 'content': content},
-        ],
-      }),
-    );
+    try {
+      final res = await _client
+          .post(
+            Uri.parse(_url),
+            headers: {
+              'Authorization': 'Bearer $apiKey',
+              'Content-Type': 'application/json',
+            },
+            body: jsonEncode({
+              'model': model,
+              'messages': [
+                {'role': 'user', 'content': content},
+              ],
+            }),
+          )
+          .timeout(_kGroqTimeout);
 
-    if (res.statusCode < 200 || res.statusCode >= 300) {
-      throw Exception('Groq API ${res.statusCode}: ${res.body}');
+      if (res.statusCode < 200 || res.statusCode >= 300) {
+        developer.log(
+          'Groq generateForBasket non-2xx: ${res.statusCode}',
+          error: res.body,
+          level: 900,
+        );
+        throw StateError(_kGroqUnavailableMessage);
+      }
+
+      final map = jsonDecode(res.body) as Map<String, dynamic>;
+      final choices = map['choices'] as List<dynamic>?;
+
+      if (choices == null || choices.isEmpty) {
+        developer.log('Groq generateForBasket: no choices', level: 900);
+        throw StateError(_kGroqUnavailableMessage);
+      }
+
+      final msg = choices.first as Map<String, dynamic>;
+      final message = msg['message'] as Map<String, dynamic>?;
+      final text = message?['content'] as String?;
+
+      if (text == null || text.isEmpty) {
+        developer.log('Groq generateForBasket: empty content', level: 900);
+        throw StateError(_kGroqUnavailableMessage);
+      }
+
+      return text.trim();
+    } on StateError {
+      rethrow;
+    } on TimeoutException catch (e) {
+      developer.log('Groq generateForBasket timed out', error: e, level: 900);
+      throw StateError(_kGroqUnavailableMessage);
+    } catch (e, st) {
+      developer.log(
+        'Groq generateForBasket failed',
+        error: e,
+        stackTrace: st,
+        level: 900,
+      );
+      throw StateError(_kGroqUnavailableMessage);
     }
-
-    final map = jsonDecode(res.body) as Map<String, dynamic>;
-    final choices = map['choices'] as List<dynamic>?;
-
-    if (choices == null || choices.isEmpty) {
-      throw Exception('Groq API: no choices in response');
-    }
-
-    final msg = choices.first as Map<String, dynamic>;
-    final message = msg['message'] as Map<String, dynamic>?;
-    final text = message?['content'] as String?;
-
-    if (text == null || text.isEmpty) {
-      throw Exception('Groq API: empty content');
-    }
-
-    return text.trim();
   }
 
   // ==========================================
@@ -157,21 +186,27 @@ Estimated Price: [Number] PHP or 0 if unknown
         'temperature': 0.4,
       };
 
-      final response = await _client.post(
-        Uri.parse(_url),
-        headers: {
-          'Authorization': 'Bearer $apiKey',
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode(payload),
-      );
+      final response = await _client
+          .post(
+            Uri.parse(_url),
+            headers: {
+              'Authorization': 'Bearer $apiKey',
+              'Content-Type': 'application/json',
+            },
+            body: jsonEncode(payload),
+          )
+          .timeout(_kGroqTimeout);
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body) as Map<String, dynamic>;
         final choices = data['choices'] as List<dynamic>?;
 
         if (choices == null || choices.isEmpty) {
-          throw Exception('Groq API: no choices in image response');
+          developer.log(
+            'Groq analyzeFoodImageBytes: no choices',
+            level: 900,
+          );
+          throw StateError(_kGroqUnavailableMessage);
         }
 
         final firstChoice = choices.first as Map<String, dynamic>;
@@ -179,20 +214,36 @@ Estimated Price: [Number] PHP or 0 if unknown
         final content = message?['content'] as String?;
 
         if (content == null || content.isEmpty) {
-          throw Exception('Groq API: empty image analysis response');
+          developer.log(
+            'Groq analyzeFoodImageBytes: empty content',
+            level: 900,
+          );
+          throw StateError(_kGroqUnavailableMessage);
         }
 
         return content.trim();
       } else {
         developer.log(
-          'Groq API Error: ${response.statusCode} - ${response.body}',
+          'Groq analyzeFoodImageBytes non-2xx: ${response.statusCode}',
+          error: response.body,
           level: 900,
         );
-        throw Exception('Failed to analyze image. Please try again.');
+        throw StateError(_kGroqUnavailableMessage);
       }
-    } catch (e) {
-      developer.log('Image analysis error: $e', level: 900);
-      throw Exception('Failed to connect to AI: $e');
+    } on StateError {
+      rethrow;
+    } on TimeoutException catch (e) {
+      developer.log('Groq analyzeFoodImageBytes timed out',
+          error: e, level: 900);
+      throw StateError(_kGroqUnavailableMessage);
+    } catch (e, st) {
+      developer.log(
+        'Groq analyzeFoodImageBytes failed',
+        error: e,
+        stackTrace: st,
+        level: 900,
+      );
+      throw StateError(_kGroqUnavailableMessage);
     }
   }
 
@@ -216,39 +267,59 @@ Estimated Price: [Number] PHP or 0 if unknown
       {'role': 'user', 'content': userMessage},
     ];
 
-    final res = await _client.post(
-      Uri.parse(_url),
-      headers: {
-        'Authorization': 'Bearer $apiKey',
-        'Content-Type': 'application/json',
-      },
-      body: jsonEncode({
-        'model': model,
-        'messages': messages,
-        'max_tokens': 600,
-      }),
-    );
+    try {
+      final res = await _client
+          .post(
+            Uri.parse(_url),
+            headers: {
+              'Authorization': 'Bearer $apiKey',
+              'Content-Type': 'application/json',
+            },
+            body: jsonEncode({
+              'model': model,
+              'messages': messages,
+              'max_tokens': 600,
+            }),
+          )
+          .timeout(_kGroqTimeout);
 
-    if (res.statusCode < 200 || res.statusCode >= 300) {
-      throw Exception('Groq API ${res.statusCode}: ${res.body}');
+      if (res.statusCode < 200 || res.statusCode >= 300) {
+        developer.log(
+          'Groq chat non-2xx: ${res.statusCode}',
+          error: res.body,
+          level: 900,
+        );
+        throw StateError(_kGroqUnavailableMessage);
+      }
+
+      final map = jsonDecode(res.body) as Map<String, dynamic>;
+      final choices = map['choices'] as List<dynamic>?;
+
+      if (choices == null || choices.isEmpty) {
+        developer.log('Groq chat: no choices', level: 900);
+        throw StateError(_kGroqUnavailableMessage);
+      }
+
+      final firstChoice = choices.first as Map<String, dynamic>;
+      final message = firstChoice['message'] as Map<String, dynamic>?;
+      final text = message?['content'] as String?;
+
+      if (text == null || text.isEmpty) {
+        developer.log('Groq chat: empty response', level: 900);
+        throw StateError(_kGroqUnavailableMessage);
+      }
+
+      return text.trim();
+    } on StateError {
+      rethrow;
+    } on TimeoutException catch (e) {
+      developer.log('Groq chat timed out', error: e, level: 900);
+      throw StateError(_kGroqUnavailableMessage);
+    } catch (e, st) {
+      developer.log('Groq chat failed',
+          error: e, stackTrace: st, level: 900);
+      throw StateError(_kGroqUnavailableMessage);
     }
-
-    final map = jsonDecode(res.body) as Map<String, dynamic>;
-    final choices = map['choices'] as List<dynamic>?;
-
-    if (choices == null || choices.isEmpty) {
-      throw Exception('Groq API: no choices in chat response');
-    }
-
-    final firstChoice = choices.first as Map<String, dynamic>;
-    final message = firstChoice['message'] as Map<String, dynamic>?;
-    final text = message?['content'] as String?;
-
-    if (text == null || text.isEmpty) {
-      throw Exception('Groq: empty response');
-    }
-
-    return text.trim();
   }
 
   Future<Map<String, dynamic>> generateRecipeSteps(
@@ -264,31 +335,66 @@ Estimated Price: [Number] PHP or 0 if unknown
         'Reply ONLY in this exact JSON format. No markdown. No extra text:\n'
         '{"description":"2-sentence recipe summary","steps":["Step 1...","Step 2...","Step 3...","Step 4..."]}';
 
-    final res = await _client.post(
-      Uri.parse(_url),
-      headers: {
-        'Authorization': 'Bearer $apiKey',
-        'Content-Type': 'application/json',
-      },
-      body: jsonEncode({
-        'model': model,
-        'messages': [
-          {'role': 'user', 'content': prompt},
-        ],
-        'max_tokens': 400,
-        'temperature': 0.4,
-      }),
-    );
-
-    if (res.statusCode < 200 || res.statusCode >= 300) {
-      throw Exception('Groq API ${res.statusCode}: ${res.body}');
+    final http.Response res;
+    try {
+      res = await _client
+          .post(
+            Uri.parse(_url),
+            headers: {
+              'Authorization': 'Bearer $apiKey',
+              'Content-Type': 'application/json',
+            },
+            body: jsonEncode({
+              'model': model,
+              'messages': [
+                {'role': 'user', 'content': prompt},
+              ],
+              'max_tokens': 400,
+              'temperature': 0.4,
+            }),
+          )
+          .timeout(_kGroqTimeout);
+    } on TimeoutException catch (e) {
+      developer.log('Groq generateRecipeSteps timed out',
+          error: e, level: 900);
+      throw StateError(_kGroqUnavailableMessage);
+    } catch (e, st) {
+      developer.log(
+        'Groq generateRecipeSteps request failed',
+        error: e,
+        stackTrace: st,
+        level: 900,
+      );
+      throw StateError(_kGroqUnavailableMessage);
     }
 
-    final map = jsonDecode(res.body) as Map<String, dynamic>;
+    if (res.statusCode < 200 || res.statusCode >= 300) {
+      developer.log(
+        'Groq generateRecipeSteps non-2xx: ${res.statusCode}',
+        error: res.body,
+        level: 900,
+      );
+      throw StateError(_kGroqUnavailableMessage);
+    }
+
+    final Map<String, dynamic> map;
+    try {
+      map = jsonDecode(res.body) as Map<String, dynamic>;
+    } catch (e, st) {
+      developer.log(
+        'Groq generateRecipeSteps: bad JSON envelope',
+        error: e,
+        stackTrace: st,
+        level: 900,
+      );
+      throw StateError(_kGroqUnavailableMessage);
+    }
+
     final choices = map['choices'] as List<dynamic>?;
 
     if (choices == null || choices.isEmpty) {
-      throw Exception('Groq API: no choices in recipe response');
+      developer.log('Groq generateRecipeSteps: no choices', level: 900);
+      throw StateError(_kGroqUnavailableMessage);
     }
 
     final firstChoice = choices.first as Map<String, dynamic>;

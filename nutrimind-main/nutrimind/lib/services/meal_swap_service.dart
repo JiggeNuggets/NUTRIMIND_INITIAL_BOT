@@ -58,7 +58,7 @@ class MealSwapService {
     final lines = [
       'Swapped from "${original.name}" using NutriMind Meal Swap.',
       'Reason: ${option.reason}',
-      'Dataset disclosure: local prices and macros are prototype estimates, not live market prices.',
+      'Dataset disclosure: local prices and macros are estimated values, not live market prices.',
       if (food != null && food.source.trim().isNotEmpty)
         'Source: ${food.source}',
       if (food != null && food.sourceType.trim().isNotEmpty)

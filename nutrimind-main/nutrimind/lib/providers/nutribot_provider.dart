@@ -106,9 +106,14 @@ class NutriBotController extends ChangeNotifier {
       if (_disposed) return;
       _stopThinkingCycle();
       final idx = _messages.length - 1;
-      _messages[idx] = _messages[idx].copyWith(isStreaming: false);
+      _messages[idx] = _messages[idx].copyWith(
+        isStreaming: false,
+        isFallback: _service.lastResponseWasFallback,
+      );
       _botState = NutribotState.done;
-      _statusText = 'Here to help anytime';
+      _statusText = _service.lastResponseWasFallback
+          ? 'Using offline tips'
+          : 'Here to help anytime';
       _safeNotify();
 
       Future.delayed(const Duration(seconds: 2), () {
@@ -122,8 +127,9 @@ class NutriBotController extends ChangeNotifier {
       if (_messages.isNotEmpty && !_messages.last.isUser) {
         _messages[_messages.length - 1] = _messages.last.copyWith(
           content:
-              'I could not finish that response. Try asking again in a simpler way.',
+              'NutriBot is temporarily unavailable. Please try again.',
           isStreaming: false,
+          isFallback: true,
         );
       }
       _botState = NutribotState.error;

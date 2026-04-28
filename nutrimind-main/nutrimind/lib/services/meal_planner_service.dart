@@ -245,6 +245,7 @@ class MealPlannerService {
       carbs: food.carbs,
       fat: food.fat,
       ingredients: food.ingredients,
+      imageUrl: food.imageUrl,
       mealType: food.mealType,
       category: food.category,
       servingSize: food.servingSize,

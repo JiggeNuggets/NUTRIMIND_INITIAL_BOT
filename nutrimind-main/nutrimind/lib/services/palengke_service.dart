@@ -18,7 +18,7 @@ class PalengkeService {
   ];
 
   static const prototypeDisclosure =
-      'Palengke prices and categories are prototype estimates unless they come from Firestore market_prices or local_foods records with source/date metadata.';
+      'Palengke prices and categories are estimated unless sourced from verified market data.';
 
   final FirebaseFirestore _db;
   final List<PalengkeItemModel> _items = [];
@@ -150,7 +150,7 @@ class PalengkeService {
         createdAt: createdState[id] ?? DateTime.now(),
         priceSource: hasConfiguredPrice
             ? config.source
-            : 'NutriMind prototype Palengke fallback',
+            : 'NutriMind Palengke estimate',
         priceSourceType:
             hasConfiguredPrice ? config.sourceType : 'prototype_estimate',
         lastVerifiedDate: hasConfiguredPrice ? config.lastVerifiedDate : null,

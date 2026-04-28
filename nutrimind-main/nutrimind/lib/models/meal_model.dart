@@ -20,6 +20,7 @@ class MealModel {
   final int fat;
   final String? recipe;
   final List<String> cookingSteps;
+  final String? imageUrl;
 
   MealModel({
     required this.id,
@@ -38,6 +39,7 @@ class MealModel {
     this.fat = 0,
     this.recipe,
     this.cookingSteps = const [],
+    this.imageUrl,
   });
 
   String get typeLabel {
@@ -74,6 +76,7 @@ class MealModel {
         'fat': fat,
         'recipe': recipe,
         'cookingSteps': cookingSteps,
+        'imageUrl': imageUrl,
       };
 
   factory MealModel.fromMap(Map<String, dynamic> map) => MealModel(
@@ -103,6 +106,7 @@ class MealModel {
         fat: (map['fat'] ?? 0).toInt(),
         recipe: map['recipe'] as String?,
         cookingSteps: List<String>.from(map['cookingSteps'] ?? []),
+        imageUrl: map['imageUrl'] as String?,
       );
 
   MealModel copyWith({
@@ -110,6 +114,7 @@ class MealModel {
     DateTime? loggedAt,
     String? recipe,
     List<String>? cookingSteps,
+    String? imageUrl,
   }) =>
       MealModel(
         id: id,
@@ -128,5 +133,6 @@ class MealModel {
         fat: fat,
         recipe: recipe ?? this.recipe,
         cookingSteps: cookingSteps ?? this.cookingSteps,
+        imageUrl: imageUrl ?? this.imageUrl,
       );
 }

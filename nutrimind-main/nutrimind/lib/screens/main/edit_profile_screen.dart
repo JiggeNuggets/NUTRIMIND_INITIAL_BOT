@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:typed_data';
+import '../../models/user_model.dart';
 import '../../theme/app_theme.dart';
 import '../../providers/auth_provider.dart';
-import '../../services/firestore_service.dart';
 import '../../services/storage_service.dart';
 
 class EditProfileScreen extends StatefulWidget {
@@ -22,7 +22,15 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   late double _weight;
   late int _age;
   late String _gender;
+  late String _goal;
+  late double _dailyBudget;
   bool _saving = false;
+
+  static const Map<String, String> _goalLabels = {
+    'nutrition': 'Nutrition Recovery',
+    'weight': 'Weight Management',
+    'health': 'Health Improvement',
+  };
 
   XFile? _pickedImage;
   Uint8List? _imageBytes;
@@ -40,7 +48,15 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     _weight = user?.weight ?? 64;
     _age = user?.age ?? 28;
     _gender = user?.gender ?? 'Male';
+    final storedGoal = (user?.goal ?? 'nutrition').trim();
+    _goal = _goalLabels.containsKey(storedGoal) ? storedGoal : 'nutrition';
+    _dailyBudget = (user?.dailyBudget ?? 150) <= 0
+        ? 150
+        : (user?.dailyBudget ?? 150);
   }
+
+  double get _bmi =>
+      UserModel.computeBmi(heightCm: _height, weightKg: _weight);
 
   @override
   void dispose() {
@@ -132,44 +148,38 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       if (_pickedImage != null) {
         final url =
             await _storageService.uploadProfileImage(user.uid, _pickedImage!);
+        if (!mounted) return;
         await auth.updateProfilePhoto(url);
+        if (!mounted) return;
       }
 
-      await FirestoreService().updateUser(user.uid, {
-        'name': _nameCtrl.text.trim(),
-        'location': _locationCtrl.text.trim(),
-        'height': _height,
-        'weight': _weight,
-        'age': _age,
-        'gender': _gender,
-      });
-
-      await auth.updateOnboarding(
-        goal: user.goal,
+      await auth.updateProfileDetails(
+        name: _nameCtrl.text.trim(),
+        location: _locationCtrl.text.trim(),
+        goal: _goal,
         gender: _gender,
         height: _height,
         weight: _weight,
         age: _age,
+        dailyBudget: _dailyBudget,
       );
+      if (!mounted) return;
 
       setState(() => _saving = false);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Profile updated successfully!'),
-          backgroundColor: AppTheme.primaryGreen,
-          behavior: SnackBarBehavior.floating,
-        ));
-        Navigator.pop(context);
-      }
-    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Profile updated successfully!'),
+        backgroundColor: AppTheme.primaryGreen,
+        behavior: SnackBarBehavior.floating,
+      ));
+      Navigator.pop(context);
+    } catch (_) {
+      if (!mounted) return;
       setState(() => _saving = false);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Error saving profile: $e'),
-          backgroundColor: AppTheme.errorRed,
-          behavior: SnackBarBehavior.floating,
-        ));
-      }
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Something went wrong. Please try again.'),
+        backgroundColor: AppTheme.errorRed,
+        behavior: SnackBarBehavior.floating,
+      ));
     }
   }
 
@@ -180,8 +190,11 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     ImageProvider? avatarImage;
     if (_imageBytes != null) {
       avatarImage = MemoryImage(_imageBytes!);
-    } else if (user?.photoUrl != null) {
-      avatarImage = NetworkImage(user!.photoUrl!);
+    } else {
+      final photoUrl = user?.photoUrl?.trim();
+      if (photoUrl != null && photoUrl.isNotEmpty) {
+        avatarImage = NetworkImage(photoUrl);
+      }
     }
 
     return Scaffold(
@@ -286,6 +299,22 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               ),
               const SizedBox(height: 24),
 
+              _label('Goal'),
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: _goalLabels.entries.map((entry) {
+                  final sel = _goal == entry.key;
+                  return ChoiceChip(
+                    label: Text(entry.value),
+                    selected: sel,
+                    onSelected: (_) => setState(() => _goal = entry.key),
+                  );
+                }).toList(),
+              ),
+              const SizedBox(height: 24),
+
               _label('Gender'),
               const SizedBox(height: 10),
               Row(
@@ -328,6 +357,20 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               _buildNumSlider('Age', _age.toDouble(), 10, 80, 'yrs',
                   (v) => setState(() => _age = v.toInt())),
 
+              const SizedBox(height: 18),
+              _bmiCard(),
+
+              const SizedBox(height: 18),
+              _label('Daily food budget (PHP)'),
+              _buildNumSlider(
+                'Budget',
+                _dailyBudget.clamp(50, 1000).toDouble(),
+                50,
+                1000,
+                'PHP',
+                (v) => setState(() => _dailyBudget = v.roundToDouble()),
+              ),
+
               const SizedBox(height: 36),
               ElevatedButton(
                 onPressed: _saving ? null : _save,
@@ -342,6 +385,51 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _bmiCard() {
+    final bmi = _bmi;
+    final label = UserModel.computeBmiCategory(bmi);
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppTheme.softGreen,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        children: [
+          const Icon(
+            Icons.monitor_weight_outlined,
+            color: AppTheme.primaryGreen,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'BMI',
+                  style: TextStyle(
+                    color: AppTheme.textMid,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                Text(
+                  '${bmi.toStringAsFixed(1)}  •  $label',
+                  style: const TextStyle(
+                    color: AppTheme.textDark,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 14,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

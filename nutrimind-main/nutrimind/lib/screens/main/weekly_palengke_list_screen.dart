@@ -29,6 +29,7 @@ class _WeeklyPalengkeListScreenState extends State<WeeklyPalengkeListScreen> {
   bool _savingListState = false;
   String _uid = '';
   List<MealModel> _weeklyMeals = const [];
+  DateTime? _generatedAt;
 
   @override
   void didChangeDependencies() {
@@ -59,6 +60,8 @@ class _WeeklyPalengkeListScreenState extends State<WeeklyPalengkeListScreen> {
       weekEnd: _weekEnd,
       meals: meals,
     );
+    // Record when the list was last generated so the header can display it.
+    if (mounted) setState(() => _generatedAt = DateTime.now());
   }
 
   DateTime _startOfWeek(DateTime date) {
@@ -109,14 +112,14 @@ class _WeeklyPalengkeListScreenState extends State<WeeklyPalengkeListScreen> {
 
                 if (_weeklyMeals.isEmpty) {
                   return _buildStateMessage(
-                    icon: Icons.shopping_basket_outlined,
-                    title: 'No saved meals for this week yet.',
+                    icon: Icons.calendar_month_outlined,
+                    title: 'No weekly plan yet.',
                     message:
-                        'Save meals from the AI Planner, Scanner, or Manual Log first.',
+                        'Generate a Weekly Plan first.',
                     action: OutlinedButton.icon(
                       onPressed: () => Navigator.of(context).pop(),
                       icon: const Icon(Icons.arrow_back, size: 18),
-                      label: const Text('Back to Plan'),
+                      label: const Text('Go to Meal Planner'),
                     ),
                   );
                 }
@@ -124,13 +127,13 @@ class _WeeklyPalengkeListScreenState extends State<WeeklyPalengkeListScreen> {
                 if (_palengkeService.items.isEmpty) {
                   return _buildStateMessage(
                     icon: Icons.checklist_outlined,
-                    title: 'No ingredients found yet',
+                    title: 'No ingredients found',
                     message:
-                        'Saved meals need ingredients before NutriMind can build a Palengke List.',
+                        'Your planned meals have no ingredients listed. Generate a Weekly Plan with the AI Meal Planner.',
                     action: OutlinedButton.icon(
                       onPressed: () => Navigator.of(context).pop(),
                       icon: const Icon(Icons.arrow_back, size: 18),
-                      label: const Text('Back to Plan'),
+                      label: const Text('Go to Meal Planner'),
                     ),
                   );
                 }
@@ -192,6 +195,17 @@ class _WeeklyPalengkeListScreenState extends State<WeeklyPalengkeListScreen> {
                       fontWeight: FontWeight.w800,
                     ),
                   ),
+                  if (_generatedAt != null) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      'Last generated: ${DateFormat('MMM d, h:mm a').format(_generatedAt!)}',
+                      style: const TextStyle(
+                        color: AppTheme.primaryGreen,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -212,37 +226,125 @@ class _WeeklyPalengkeListScreenState extends State<WeeklyPalengkeListScreen> {
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 0, 20, 28),
       children: [
-        Text(
-          _palengkeService.usesPrototypeEstimates
-              ? '${PalengkeService.prototypeDisclosure} List is based on saved meals from Monday to Sunday.'
-              : 'List is based on saved meals from Monday to Sunday. Prices and categories loaded from Firestore market config.',
-          style: const TextStyle(
-            color: AppTheme.textMid,
-            fontSize: 13,
-            height: 1.4,
-          ),
+        // Base description row
+        Row(
+          children: [
+            const Icon(Icons.info_outline,
+                size: 14, color: AppTheme.primaryGreen),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Text(
+                _palengkeService.usesPrototypeEstimates
+                    ? 'Based on saved meals from Monday to Sunday. Prices are estimated.'
+                    : 'Based on saved meals from Monday to Sunday. Prices loaded from market config.',
+                style: const TextStyle(
+                  color: AppTheme.textMid,
+                  fontSize: 12,
+                  height: 1.4,
+                ),
+              ),
+            ),
+          ],
         ),
-        if (configError != null) ...[
+        // Estimated prices banner
+        if (_palengkeService.usesPrototypeEstimates) ...[
           const SizedBox(height: 8),
-          Text(
-            'Market config could not be loaded, so prototype estimates are shown.',
-            style: TextStyle(
-              color: AppTheme.orangeAccent.withValues(alpha: 0.90),
-              fontSize: 12,
-              height: 1.35,
-              fontWeight: FontWeight.w700,
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+            decoration: BoxDecoration(
+              color: AppTheme.orangeAccent.withValues(alpha: 0.10),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: AppTheme.orangeAccent.withValues(alpha: 0.30),
+              ),
+            ),
+            child: const Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(Icons.price_change_outlined,
+                    size: 15, color: AppTheme.orangeAccent),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Prices shown are rough estimates based on local Davao market averages — not live market data. Use them as a budget guide when shopping.',
+                    style: TextStyle(
+                      color: AppTheme.orangeAccent,
+                      fontSize: 12,
+                      height: 1.4,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         ],
+        // Market config load error
+        if (configError != null) ...[
+          const SizedBox(height: 8),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+            decoration: BoxDecoration(
+              color: AppTheme.orangeAccent.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: AppTheme.orangeAccent.withValues(alpha: 0.25),
+              ),
+            ),
+            child: const Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(Icons.warning_amber_outlined,
+                    size: 15, color: AppTheme.orangeAccent),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Market config could not be loaded, so estimated prices are shown.',
+                    style: TextStyle(
+                      color: AppTheme.orangeAccent,
+                      fontSize: 12,
+                      height: 1.35,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+        // Persistence / sync error
         if (persistenceError != null) ...[
           const SizedBox(height: 8),
-          Text(
-            'Palengke List sync is unavailable. You can still view the generated list, but bought-state changes may not persist until Firestore rules/config are ready.',
-            style: TextStyle(
-              color: AppTheme.orangeAccent.withValues(alpha: 0.90),
-              fontSize: 12,
-              height: 1.35,
-              fontWeight: FontWeight.w700,
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+            decoration: BoxDecoration(
+              color: AppTheme.orangeAccent.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: AppTheme.orangeAccent.withValues(alpha: 0.25),
+              ),
+            ),
+            child: const Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(Icons.sync_problem_outlined,
+                    size: 15, color: AppTheme.orangeAccent),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Palengke List sync is unavailable. Changes may not persist until Firestore config is ready.',
+                    style: TextStyle(
+                      color: AppTheme.orangeAccent,
+                      fontSize: 12,
+                      height: 1.35,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -342,7 +444,7 @@ class _WeeklyPalengkeListScreenState extends State<WeeklyPalengkeListScreen> {
           const SizedBox(height: 8),
           Text(
             _palengkeService.usesPrototypeEstimates
-                ? 'Prototype estimates. Not live market prices.'
+                ? 'Estimated prices. Not live market prices.'
                 : 'Firestore market price config.',
             style: const TextStyle(color: Colors.white70, fontSize: 11),
           ),
@@ -571,7 +673,7 @@ class _WeeklyPalengkeListScreenState extends State<WeeklyPalengkeListScreen> {
                     ),
                     child: Text(
                       item.isPrototypeEstimate
-                          ? 'prototype estimate'
+                          ? 'estimated price'
                           : 'market config',
                       style: const TextStyle(
                         color: AppTheme.primaryGreen,

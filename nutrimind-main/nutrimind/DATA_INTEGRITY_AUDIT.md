@@ -1,10 +1,21 @@
 # NutriMind Data Integrity Audit
 
-Last updated: 2026-04-25
+Last updated: 2026-04-27
 
 This file tracks production-visible data integrity findings and follow-up work.
 
+**Phase 1 master audit** (387 lines, 36 findings) is located at:
+`C:\Users\wapak\Downloads\nutrimind-main\DATA_INTEGRITY_AUDIT.md`
+
+This file contains the **Phase 2 addendum** for Scanner/Pantry findings only.
+
 ---
+
+### Phase 1 Summary (from master audit)
+
+- DI-001 to DI-036 documented in root `DATA_INTEGRITY_AUDIT.md`
+- Key resolved items: seeded meals removed, profile/budget gating added, scanner review required, community likes migrated to subcollection, Palengke persistence added
+- Key remaining: prototype datasets, missing Firestore/Storage rules, verified market data needed
 
 ## Phase 2 Addendum: Pantry + Scanner Hub
 

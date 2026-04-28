@@ -15,8 +15,8 @@ class RecipeDatasetService {
   static const String _defaultAssetPath =
       'assets/data/recipes_nutrition_sample.json';
   static const String prototypeDisclosure =
-      'Prototype recipe dataset: academic/non-production sample data. '
-      'Use a verified recipe API or Firestore recipes collection for production.';
+      'Sample recipe dataset: academic/non-production sample data. '
+      'Nutritional values and prices are estimates.';
 
   final String assetPath;
 

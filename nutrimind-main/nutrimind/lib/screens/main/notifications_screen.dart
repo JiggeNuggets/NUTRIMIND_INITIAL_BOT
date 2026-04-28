@@ -104,7 +104,8 @@ class _NotificationsList extends StatelessWidget {
     if (notifications.isEmpty) {
       return const _StateMessage(
         icon: Icons.notifications_none_outlined,
-        title: 'No notifications yet.',
+        title: "You're all caught up!",
+        subtitle: 'New activity will appear here.',
       );
     }
 
@@ -347,10 +348,12 @@ class _TypeChip extends StatelessWidget {
 class _StateMessage extends StatelessWidget {
   final IconData icon;
   final String title;
+  final String subtitle;
 
   const _StateMessage({
     required this.icon,
     required this.title,
+    this.subtitle = '',
   });
 
   @override
@@ -372,6 +375,17 @@ class _StateMessage extends StatelessWidget {
                 fontWeight: FontWeight.w700,
               ),
             ),
+            if (subtitle.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              Text(
+                subtitle,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: AppTheme.textLight,
+                  fontSize: 12,
+                ),
+              ),
+            ],
           ],
         ),
       ),

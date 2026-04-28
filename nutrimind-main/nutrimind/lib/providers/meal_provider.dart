@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
 import '../services/firestore_service.dart';
@@ -6,6 +7,7 @@ import '../services/engagement_service.dart';
 import '../services/meal_swap_service.dart';
 import '../models/meal_model.dart';
 import '../models/recipe_model.dart';
+import '../utils/firestore_safety.dart';
 
 class MealProvider extends ChangeNotifier {
   final FirestoreService _firestoreService = FirestoreService();
@@ -30,8 +32,15 @@ class MealProvider extends ChangeNotifier {
       0, (sum, m) => sum + (m.status == MealStatus.logged ? m.calories : 0));
   int get loggedCount =>
       _meals.where((m) => m.status == MealStatus.logged).length;
+  int get plannedCount =>
+      _meals.where((m) => m.status != MealStatus.logged).length;
+  int get plannedCalories => _meals.fold(
+      0, (sum, m) => sum + (m.status != MealStatus.logged ? m.calories : 0));
+  double get plannedCost => _meals.fold(
+      0.0, (sum, m) => sum + (m.status != MealStatus.logged ? m.price : 0));
 
   void listenToMeals(String uid) {
+    if (uid.isEmpty) return;
     _mealsSubscription?.cancel();
     _loading = true;
     _error = null;
@@ -57,6 +66,13 @@ class MealProvider extends ChangeNotifier {
 
   Future<void> selectDate(String uid, DateTime date) async {
     _selectedDate = date;
+    if (uid.isEmpty) {
+      _meals = [];
+      _loading = false;
+      _error = null;
+      notifyListeners();
+      return;
+    }
     _loading = true;
     _error = null;
     notifyListeners();
@@ -111,6 +127,11 @@ class MealProvider extends ChangeNotifier {
     String? photoUrl,
     double dailyBudget = 150,
   }) async {
+    if (uid.isEmpty || mealId.isEmpty) {
+      _error = 'Unable to log meal — not signed in.';
+      notifyListeners();
+      return;
+    }
     try {
       await _firestoreService.logMeal(uid, mealId);
       final idx = _meals.indexWhere((m) => m.id == mealId);
@@ -142,8 +163,14 @@ class MealProvider extends ChangeNotifier {
           dailyBudget: dailyBudget,
         );
       }
-    } catch (e) {
-      _error = e.toString();
+    } catch (e, st) {
+      developer.log(
+        'Failed to log meal',
+        error: e,
+        stackTrace: st,
+        level: 900,
+      );
+      _error = 'Could not log meal. Please try again.';
       notifyListeners();
     }
   }
@@ -171,7 +198,7 @@ class MealProvider extends ChangeNotifier {
         userId: uid,
         name: name,
         type: type,
-        price: price,
+        price: safeDouble(price),
         calories: calories,
         date: _selectedDate,
         status: status,
@@ -236,20 +263,26 @@ class MealProvider extends ChangeNotifier {
     int fat = 0,
     List<String> ingredients = const [],
     String? notes,
+    String? imageUrl,
     MealStatus status = MealStatus.ready,
     String displayName = '',
     String? photoUrl,
     double dailyBudget = 150,
+    DateTime? forDate,
   }) async {
+    if (uid.isEmpty) {
+      throw ArgumentError('Firestore write requires non-empty user id');
+    }
     try {
+      final mealDate = forDate ?? _selectedDate;
       final meal = MealModel(
         id: _uuid.v4(),
         userId: uid,
         name: name,
         type: type,
-        price: price,
+        price: safeDouble(price),
         calories: calories,
-        date: _selectedDate,
+        date: mealDate,
         status: status,
         loggedAt: status == MealStatus.logged ? DateTime.now() : null,
         notes: notes,
@@ -257,10 +290,16 @@ class MealProvider extends ChangeNotifier {
         carbs: carbs,
         fat: fat,
         ingredients: ingredients,
+        imageUrl: _cleanImageUrl(imageUrl),
       );
       await _firestoreService.addMeal(meal);
-      _meals.add(meal);
-      _meals.sort((a, b) => a.type.index.compareTo(b.type.index));
+      final mealDay = DateTime(mealDate.year, mealDate.month, mealDate.day);
+      final selDay = DateTime(
+          _selectedDate.year, _selectedDate.month, _selectedDate.day);
+      if (mealDay == selDay) {
+        _meals.add(meal);
+        _meals.sort((a, b) => a.type.index.compareTo(b.type.index));
+      }
       _error = null;
       notifyListeners();
       await _tryRecordActivity(
@@ -303,7 +342,7 @@ class MealProvider extends ChangeNotifier {
         userId: uid,
         name: recipe.name,
         type: _mealTypeFromRecipe(recipe.mealType),
-        price: recipe.estimatedPricePhp,
+        price: safeDouble(recipe.estimatedPricePhp),
         calories: recipe.calories,
         date: _selectedDate,
         status: status,
@@ -315,6 +354,7 @@ class MealProvider extends ChangeNotifier {
         ingredients: recipe.ingredients,
         recipe: recipe.description.isEmpty ? null : recipe.description,
         cookingSteps: recipe.cookingSteps,
+        imageUrl: _cleanImageUrl(recipe.imageUrl),
       );
       await _firestoreService.addMeal(meal);
       _meals.add(meal);
@@ -432,9 +472,10 @@ class MealProvider extends ChangeNotifier {
 
       final original = _meals[idx];
       final notes = MealSwapService.replacementNotes(original, option);
+      final replacementImageUrl = _cleanImageUrl(food.imageUrl);
       final updateData = {
         'name': food.name,
-        'price': food.estimatedPricePhp,
+        'price': safeDouble(food.estimatedPricePhp),
         'calories': food.calories,
         'notes': notes,
         'ingredients': food.ingredients,
@@ -443,6 +484,7 @@ class MealProvider extends ChangeNotifier {
         'fat': food.fat,
         'recipe': null,
         'cookingSteps': <String>[],
+        'imageUrl': replacementImageUrl,
       };
 
       await _firestoreService.updateMeal(uid, mealId, updateData);
@@ -464,6 +506,7 @@ class MealProvider extends ChangeNotifier {
         fat: food.fat,
         recipe: null,
         cookingSteps: const [],
+        imageUrl: replacementImageUrl,
       );
 
       _meals[idx] = swappedMeal;
@@ -498,6 +541,11 @@ class MealProvider extends ChangeNotifier {
   bool _isBudgetFriendlyMeal(double price, double dailyBudget) {
     if (dailyBudget <= 0 || price <= 0) return false;
     return price <= dailyBudget / 4;
+  }
+
+  String? _cleanImageUrl(String? value) {
+    final trimmed = value?.trim();
+    return trimmed == null || trimmed.isEmpty ? null : trimmed;
   }
 
   Future<void> _tryRecordActivity({

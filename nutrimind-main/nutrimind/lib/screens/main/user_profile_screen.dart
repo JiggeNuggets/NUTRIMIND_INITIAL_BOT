@@ -7,6 +7,7 @@ import '../../providers/auth_provider.dart';
 import '../../providers/community_provider.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/modern_app_theme.dart';
+import '../../widgets/safe_image.dart';
 import 'post_detail_screen.dart';
 
 class UserProfileScreen extends StatelessWidget {
@@ -84,21 +85,15 @@ class _ProfileHeader extends StatelessWidget {
         children: [
           Row(
             children: [
-              CircleAvatar(
+              SafeAvatar(
                 radius: 38,
-                backgroundColor: AppTheme.softGreen,
-                backgroundImage:
-                    user.photoUrl != null ? NetworkImage(user.photoUrl!) : null,
-                child: user.photoUrl == null
-                    ? Text(
-                        user.name.isNotEmpty ? user.name[0].toUpperCase() : 'U',
-                        style: const TextStyle(
-                          color: AppTheme.primaryGreen,
-                          fontSize: 26,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      )
-                    : null,
+                photoUrl: user.photoUrl,
+                displayName: user.name,
+                textStyle: const TextStyle(
+                  color: AppTheme.primaryGreen,
+                  fontSize: 26,
+                  fontWeight: FontWeight.w800,
+                ),
               ),
               const SizedBox(width: 16),
               Expanded(

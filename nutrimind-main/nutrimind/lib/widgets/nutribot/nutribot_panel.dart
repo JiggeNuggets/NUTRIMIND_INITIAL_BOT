@@ -166,39 +166,74 @@ class _NutriBotHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 64,
-      padding: const EdgeInsets.symmetric(horizontal: 8),
       decoration: const BoxDecoration(
         color: Colors.white,
         border: Border(
           bottom: BorderSide(color: ModernAppTheme.divider, width: 1),
         ),
       ),
-      child: Row(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          IconButton(
-            icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
-            color: ModernAppTheme.textDark,
-            tooltip: 'Back',
-            onPressed: onBack ?? () => Navigator.of(context).maybePop(),
+          // Green accent stripe at very top
+          Container(
+            height: 3,
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Color(0xFF1E4D39), Color(0xFF4CAF50)],
+              ),
+            ),
           ),
-          const Expanded(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'NutriBot',
-                  style: TextStyle(
+          SizedBox(
+            height: 61,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: Row(
+                children: [
+                  IconButton(
+                    icon:
+                        const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
                     color: ModernAppTheme.textDark,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w800,
-                    height: 1.1,
+                    tooltip: 'Back',
+                    onPressed: onBack ?? () => Navigator.of(context).maybePop(),
                   ),
-                ),
-                SizedBox(height: 3),
-                _OnlineStatus(),
-              ],
+                  // NutriBot avatar orb
+                  Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFF1E4D39), Color(0xFF2D6D4F)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(Icons.smart_toy_outlined,
+                        color: Colors.white, size: 20),
+                  ),
+                  const SizedBox(width: 10),
+                  const Expanded(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'NutriBot',
+                          style: TextStyle(
+                            color: ModernAppTheme.textDark,
+                            fontSize: 17,
+                            fontWeight: FontWeight.w800,
+                            height: 1.1,
+                          ),
+                        ),
+                        SizedBox(height: 3),
+                        _OnlineStatus(),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ],

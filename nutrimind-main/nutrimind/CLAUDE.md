@@ -12,33 +12,41 @@ NutriMind is a Flutter nutrition & meal planning app for Davao City, Philippines
 ## Architecture
 ```
 lib/
-├── main.dart                   # Firebase init, MultiProvider, AuthGate routing
-├── theme/app_theme.dart        # All colors, spacing, typography constants
-├── models/                     # Dart data models (Firestore-serializable)
-├── providers/                  # ChangeNotifier state (Auth, Meal, Community)
-├── services/                   # Firestore CRUD, Groq API, Meal Planner algorithm
-├── screens/
-│   ├── auth/                   # Login, Register, AuthGate
-│   ├── onboarding/             # Splash, Biometrics, Goal selection
-│   └── main/                   # 4-tab shell + ChatbotScreen
-│       ├── main_shell.dart     # Bottom nav (Home/Log/Community/Profile) + NutriBot FAB
-│       ├── home_screen.dart    # Today's meals (max 4), budget card
-│       ├── meal_plan_screen.dart # Meal Log: weekly calendar, expandable recipe/steps
-│       ├── profile_screen.dart  # BMI card, DSS settings, milestones
-│       ├── ai_meal_planner_screen.dart  # BMR + knapsack/greedy optimizer
-│       ├── chatbot_screen.dart  # NutriBot AI chat (Groq)
-│       └── community_screen.dart
-└── data/meal_planner_food_data.dart  # Food-101 calorie database
++-- main.dart                   # Firebase init, MultiProvider, AuthGate routing
++-- theme/
+|   +-- app_theme.dart          # Legacy color constants (still used in some screens)
+|   +-- modern_app_theme.dart   # Active global theme (ModernAppTheme.lightTheme)
++-- models/                     # Dart data models (Firestore-serializable)
++-- providers/                  # ChangeNotifier state (Auth, Meal, Community, Notification)
++-- services/                   # Firestore CRUD, Groq API, Meal Planner algorithm
++-- utils/
+|   +-- firestore_safety.dart   # safeDouble(double? v) utility
++-- config/                     # App config (engagement, community)
++-- widgets/
+|   +-- safe_image.dart         # SafeFoodImage, SafeAvatar
+|   +-- nutribot/               # NutribotLauncher, NutribotPanel
++-- screens/
+|   +-- auth/                   # Login, Register, AuthGate
+|   +-- onboarding/             # Splash, Biometrics, Goal selection
+|   +-- main/                   # 4-tab shell + NutriBot panel
+|       +-- main_shell.dart     # Bottom nav (Home/Log/Community/Profile) + NutriBot FAB
+|       +-- home_screen.dart    # Today's meals, budget card
+|       +-- meal_plan_screen.dart # Meal Log: weekly calendar, log/swap/delete
+|       +-- profile_screen.dart  # BMI card, DSS settings, badges
+|       +-- ai_meal_planner_screen.dart  # BMR + knapsack/greedy optimizer
+|       +-- recipe_browser_screen.dart   # Local/API recipe browsing
+|       +-- community_screen.dart        # Social feed
++-- data/meal_planner_food_data.dart  # Davao food database
 ```
 
 ## Navigation Structure (4 tabs)
 | Tab | Screen | Purpose |
 |-----|--------|---------|
-| Home | HomeScreen | Daily budget, today's 3-4 meals |
-| Log | MealPlanScreen | Weekly meal log with recipe & cooking steps |
+| Home | HomeScreen | Daily budget, today's meals |
+| Log | MealPlanScreen | Weekly meal log with recipe and cooking steps |
 | Community | CommunityScreen | Posts, Q&A, Market Finds |
-| Profile | ProfileScreen | BMI, DSS settings, milestones |
-| FAB | ChatbotScreen | NutriBot AI assistant (Groq chat) |
+| Profile | ProfileScreen | BMI, DSS settings, badges |
+| FAB | NutribotLauncher.open() | NutriBot AI assistant (Groq chat via nutribot_panel) |
 
 ## Key Features
 - **BMR-based meal planning**: Mifflin-St Jeor formula → knapsack DP for calorie optimization
@@ -54,14 +62,29 @@ flutter run --dart-define=GROQ_API_KEY=<your_key>
 ```
 
 ## Groq API Key
-The key is hardcoded as a fallback in `groq_meal_narrative_service.dart`. For production, pass via `--dart-define=GROQ_API_KEY=...`.
+The key is passed via `--dart-define=GROQ_API_KEY=...`. The code uses `String.fromEnvironment('GROQ_API_KEY')`. No key is hardcoded in the active codebase.
 
 ## Firestore Structure
 ```
 users/{uid}/
-  meals/{mealId}   # MealModel (name, type, calories, price, ingredients, recipe, cookingSteps)
+  meals/{mealId}         # MealModel
+  notifications/{id}     # In-app notifications
+  pantry_items/{itemId}  # Manual pantry items
+  scanned_items/{scanId} # Scanner history
+  weeklyStats/{weekId}   # Engagement points
+  badges/{badgeId}       # Earned badges
+  followers/{uid}        # Followers subcollection
+  following/{uid}        # Following subcollection
+  weekly_palengke_lists/{weekId}/items/{itemId}
+
 posts/{postId}/
   comments/{commentId}
+  likes/{uid}            # Scalable like subcollection
+  reports/{reporterId}
+  likeCount              # Aggregate field on post document
+
+local_foods/{docId}      # Optional Davao food spotlight
+market_prices/{docId}    # Optional market price config
 ```
 
 ## State Management Pattern

@@ -18,15 +18,25 @@ class ScanOptionsScreen extends StatelessWidget {
       body: SafeArea(
         top: false,
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
           children: [
+            // ── Hero header card ────────────────────────────────────────
             Container(
-              padding: const EdgeInsets.all(18),
+              padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: ModernAppTheme.white,
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF1A3D28), Color(0xFF2D6D4F)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
                 borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: ModernAppTheme.mediumGray),
-                boxShadow: ModernAppTheme.shadowSm,
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF2D6D4F).withValues(alpha: 0.28),
+                    blurRadius: 16,
+                    offset: const Offset(0, 6),
+                  ),
+                ],
               ),
               child: Row(
                 children: [
@@ -34,13 +44,13 @@ class ScanOptionsScreen extends StatelessWidget {
                     width: 52,
                     height: 52,
                     decoration: BoxDecoration(
-                      gradient: ModernAppTheme.gradientPrimary,
-                      borderRadius: BorderRadius.circular(18),
+                      color: Colors.white.withValues(alpha: 0.18),
+                      borderRadius: BorderRadius.circular(16),
                     ),
                     child: const Icon(
                       Icons.add_a_photo_outlined,
                       color: Colors.white,
-                      size: 27,
+                      size: 26,
                     ),
                   ),
                   const SizedBox(width: 14),
@@ -49,18 +59,19 @@ class ScanOptionsScreen extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'How do you want to add food?',
+                          'Add Food',
                           style: TextStyle(
-                            color: ModernAppTheme.textDark,
-                            fontSize: 18,
+                            color: Colors.white,
+                            fontSize: 20,
                             fontWeight: FontWeight.w800,
+                            height: 1.1,
                           ),
                         ),
-                        SizedBox(height: 4),
+                        SizedBox(height: 5),
                         Text(
-                          'Choose the right flow for cooked meals, pantry ingredients, or manual logs.',
+                          'Scan, log manually, or add pantry items.',
                           style: TextStyle(
-                            color: ModernAppTheme.textMid,
+                            color: Colors.white70,
                             fontSize: 13,
                             height: 1.35,
                           ),
@@ -71,7 +82,9 @@ class ScanOptionsScreen extends StatelessWidget {
                 ],
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 14),
+
+            // ── Scan history button ──────────────────────────────────────
             OutlinedButton.icon(
               onPressed: () => _openScanHistory(context),
               icon: const Icon(Icons.history_rounded, size: 18),
@@ -79,15 +92,21 @@ class ScanOptionsScreen extends StatelessWidget {
               style: OutlinedButton.styleFrom(
                 minimumSize: const Size(double.infinity, 46),
                 alignment: Alignment.center,
+                side: const BorderSide(color: ModernAppTheme.mediumGray),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
               ),
             ),
-            const SizedBox(height: 18),
+            const SizedBox(height: 20),
+
+            // ── Section label ────────────────────────────────────────────
             const Text(
               'Choose input method',
               style: TextStyle(
                 color: ModernAppTheme.textDark,
-                fontSize: 14,
-                fontWeight: FontWeight.w800,
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.3,
               ),
             ),
             const SizedBox(height: 10),

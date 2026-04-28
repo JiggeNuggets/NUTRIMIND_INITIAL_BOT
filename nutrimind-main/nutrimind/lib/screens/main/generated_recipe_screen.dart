@@ -3,9 +3,13 @@ import 'package:provider/provider.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/modern_app_theme.dart';
 import '../../models/meal_model.dart';
+import '../../models/nutribot_models.dart';
+import '../../widgets/safe_image.dart';
+import '../../widgets/nutribot/nutribot_launcher.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/meal_provider.dart';
 import '../../services/groq_meal_narrative_service.dart';
+import '../../services/food_image_resolver.dart';
 
 class GeneratedRecipeScreen extends StatefulWidget {
   final MealModel meal;
@@ -65,12 +69,35 @@ class _GeneratedRecipeScreenState extends State<GeneratedRecipeScreen> {
       }
     } catch (_) {
       if (mounted) {
+        // Local fallback recipe when Groq is unavailable.
+        final ingredients = widget.meal.ingredients;
+        final name = widget.meal.name;
         setState(() {
-          _error = 'Failed to generate recipe. Please try again.';
+          _recipeDescription =
+              'A home-style Filipino recipe for $name using locally available ingredients.';
+          _cookingSteps = _buildLocalFallbackSteps(name, ingredients);
+          _error = null;
           _loading = false;
         });
       }
     }
+  }
+
+  List<String> _buildLocalFallbackSteps(
+    String mealName,
+    List<String> ingredients,
+  ) {
+    final ingredientList =
+        ingredients.isEmpty ? 'common pantry items' : ingredients.join(', ');
+    return [
+      'Prepare all ingredients: $ingredientList.',
+      'Wash and cut vegetables. Measure rice or other staples.',
+      'Heat oil in a pan or pot over medium heat.',
+      'Cook the main protein or base ingredient until done.',
+      'Add vegetables and seasonings. Stir well.',
+      'Simmer for 5-10 minutes until flavors combine.',
+      'Serve hot with rice and enjoy your $mealName!',
+    ];
   }
 
   Future<void> _saveRecipe() async {
@@ -88,24 +115,47 @@ class _GeneratedRecipeScreenState extends State<GeneratedRecipeScreen> {
             photoUrl: user?.photoUrl,
             dailyBudget: user?.dailyBudget ?? 150,
           );
+      if (!mounted) return;
+      setState(() => _saving = false);
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Recipe saved to meal log!'),
+        backgroundColor: AppTheme.primaryGreen,
+        behavior: SnackBarBehavior.floating,
+      ));
+    } catch (_) {
       if (mounted) {
         setState(() => _saving = false);
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Recipe saved to meal log!'),
-          backgroundColor: AppTheme.primaryGreen,
-          behavior: SnackBarBehavior.floating,
-        ));
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() => _saving = false);
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Failed to save: $e'),
+          content: Text('Something went wrong. Please try again.'),
           backgroundColor: AppTheme.errorRed,
           behavior: SnackBarBehavior.floating,
         ));
       }
     }
+  }
+
+  void _askNutribot() {
+    final meal = widget.meal;
+    NutribotLauncher.open(
+      context,
+      nutribotContext: NutribotContext(
+        source: NutribotSource.recipeBrowser,
+        contextTitle: 'Ask NutriBot',
+        sourceContext: 'Generated recipe',
+        initialPrompt:
+            'Help me cook or improve "${meal.name}". Suggest tips, swaps, or steps.',
+        data: {
+          'name': meal.name,
+          if (meal.ingredients.isNotEmpty) 'ingredients': meal.ingredients,
+          if (meal.imageUrl != null && meal.imageUrl!.isNotEmpty)
+            'imageUrl': meal.imageUrl,
+          'calories': meal.calories,
+          if (_recipeDescription != null && _recipeDescription!.isNotEmpty)
+            'description': _recipeDescription,
+          if (_cookingSteps.isNotEmpty) 'cookingSteps': _cookingSteps,
+        },
+      ),
+    );
   }
 
   @override
@@ -186,6 +236,20 @@ class _GeneratedRecipeScreenState extends State<GeneratedRecipeScreen> {
             else if (_error != null)
               _buildErrorState()
             else if (_recipeDescription != null) ...[
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: _askNutribot,
+                  icon: const Icon(Icons.smart_toy_outlined, size: 18),
+                  label: const Text('Ask NutriBot'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppTheme.primaryGreen,
+                    side: const BorderSide(color: AppTheme.primaryGreen),
+                    minimumSize: const Size(0, 44),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
               _sectionTitle('Recipe Description'),
               const SizedBox(height: 8),
               Container(
@@ -271,18 +335,27 @@ class _GeneratedRecipeScreenState extends State<GeneratedRecipeScreen> {
         children: [
           Row(
             children: [
-              Container(
-                width: 56,
-                height: 56,
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.5),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Center(
-                  child: Text(_mealEmoji(meal.type),
-                      style: const TextStyle(fontSize: 26)),
-                ),
-              ),
+              (meal.imageUrl?.isNotEmpty == true ||
+                      _hasLocalAsset(meal.name))
+                  ? SafeFoodImage(
+                      imageUrl: meal.imageUrl,
+                      mealName: meal.name,
+                      width: 56,
+                      height: 56,
+                      borderRadius: BorderRadius.circular(16),
+                    )
+                  : Container(
+                      width: 56,
+                      height: 56,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.5),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Center(
+                        child: Text(_mealEmoji(meal.type),
+                            style: const TextStyle(fontSize: 26)),
+                      ),
+                    ),
               const SizedBox(width: 14),
               Expanded(
                 child: Column(
@@ -489,4 +562,7 @@ class _GeneratedRecipeScreenState extends State<GeneratedRecipeScreen> {
         return '🍌';
     }
   }
+
+  bool _hasLocalAsset(String mealName) =>
+      FoodImageResolver.resolve(mealName) != null;
 }

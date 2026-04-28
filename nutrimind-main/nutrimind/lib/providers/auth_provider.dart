@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../services/auth_service.dart';
@@ -15,6 +16,7 @@ class AuthProvider extends ChangeNotifier {
   String? _error;
   bool _loading = false;
   bool _isNewUser = false;
+  StreamSubscription<User?>? _authSubscription;
 
   AuthStatus get status => _status;
   UserModel? get userModel => _userModel;
@@ -24,7 +26,13 @@ class AuthProvider extends ChangeNotifier {
   User? get firebaseUser => _authService.currentUser;
 
   AuthProvider() {
-    _authService.authStateChanges.listen(_onAuthChanged);
+    _authSubscription = _authService.authStateChanges.listen(_onAuthChanged);
+  }
+
+  @override
+  void dispose() {
+    _authSubscription?.cancel();
+    super.dispose();
   }
 
   Future<void> _onAuthChanged(User? user) async {
@@ -150,13 +158,79 @@ class AuthProvider extends ChangeNotifier {
     required int age,
   }) async {
     if (_userModel == null) return;
+    final bmi = UserModel.computeBmi(heightCm: height, weightKg: weight);
     final updated = _userModel!.copyWith(
       goal: goal,
       gender: gender,
       height: height,
       weight: weight,
       age: age,
+      bmi: bmi,
+      bmiCategory: UserModel.computeBmiCategory(bmi),
       profileCompleted: true,
+      updatedAt: DateTime.now(),
+    );
+    await _firestoreService.updateUserProfile(updated);
+    _userModel = updated;
+    notifyListeners();
+  }
+
+  Future<void> updateProfileSetup({
+    required String goal,
+    required String gender,
+    required double height,
+    required double weight,
+    required int age,
+    required double dailyBudget,
+  }) async {
+    if (_userModel == null) return;
+    final bmi = UserModel.computeBmi(heightCm: height, weightKg: weight);
+    final updated = _userModel!.copyWith(
+      goal: goal,
+      gender: gender,
+      height: height,
+      weight: weight,
+      age: age,
+      bmi: bmi,
+      bmiCategory: UserModel.computeBmiCategory(bmi),
+      dailyBudget: dailyBudget,
+      profileCompleted: true,
+      budgetConfigured: true,
+      updatedAt: DateTime.now(),
+    );
+    await _firestoreService.updateUserProfile(updated);
+    _userModel = updated;
+    notifyListeners();
+  }
+
+  Future<void> updateProfileDetails({
+    String? name,
+    String? location,
+    String? goal,
+    String? gender,
+    double? height,
+    double? weight,
+    int? age,
+    double? dailyBudget,
+  }) async {
+    if (_userModel == null) return;
+    final newHeight = height ?? _userModel!.height;
+    final newWeight = weight ?? _userModel!.weight;
+    final bmi = UserModel.computeBmi(heightCm: newHeight, weightKg: newWeight);
+    final updated = _userModel!.copyWith(
+      name: name,
+      location: location,
+      goal: goal,
+      gender: gender,
+      height: height,
+      weight: weight,
+      age: age,
+      bmi: bmi,
+      bmiCategory: UserModel.computeBmiCategory(bmi),
+      dailyBudget: dailyBudget,
+      budgetConfigured:
+          dailyBudget != null ? true : _userModel!.budgetConfigured,
+      updatedAt: DateTime.now(),
     );
     await _firestoreService.updateUserProfile(updated);
     _userModel = updated;

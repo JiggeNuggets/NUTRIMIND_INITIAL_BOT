@@ -7,6 +7,7 @@ import '../../models/weekly_stats_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/meal_provider.dart';
 import '../../services/engagement_service.dart';
+import '../../widgets/safe_image.dart';
 import '../../widgets/state_views.dart';
 import '../onboarding/splash_screen.dart';
 import 'edit_profile_screen.dart';
@@ -45,22 +46,15 @@ class ProfileScreen extends StatelessWidget {
               children: [
                 Stack(
                   children: [
-                    CircleAvatar(
+                    SafeAvatar(
                       radius: 38,
-                      backgroundColor: AppTheme.softGreen,
-                      backgroundImage: user?.photoUrl != null
-                          ? NetworkImage(user!.photoUrl!)
-                          : null,
-                      child: user?.photoUrl == null
-                          ? Text(
-                              user?.name.isNotEmpty == true
-                                  ? user!.name[0].toUpperCase()
-                                  : 'U',
-                              style: const TextStyle(
-                                  color: AppTheme.primaryGreen,
-                                  fontWeight: FontWeight.w800,
-                                  fontSize: 28))
-                          : null,
+                      photoUrl: user?.photoUrl,
+                      displayName: user?.name ?? 'U',
+                      textStyle: const TextStyle(
+                        color: AppTheme.primaryGreen,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 28,
+                      ),
                     ),
                     if (user?.isPremium == true)
                       Positioned(
@@ -144,7 +138,7 @@ class ProfileScreen extends StatelessWidget {
             _buildBMICard(user),
             const SizedBox(height: 24),
 
-            // DSS Settings
+            // Smart Planner Settings
             _buildDSSSettings(context, user),
             const SizedBox(height: 24),
 
@@ -320,7 +314,7 @@ class ProfileScreen extends StatelessWidget {
             children: [
               Icon(Icons.psychology, color: AppTheme.primaryGreen, size: 18),
               SizedBox(width: 8),
-              Text('DSS Intelligence Settings',
+              Text('AI Meal Planner Settings',
                   style: TextStyle(
                       fontWeight: FontWeight.w700,
                       fontSize: 14,
@@ -329,7 +323,7 @@ class ProfileScreen extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           const Text(
-              'Adjust how the AI Decision Support System powers your nutritional goals.',
+              'Adjust how the AI Meal Planner powers your nutritional goals.',
               style: TextStyle(
                   fontSize: 12, color: AppTheme.textMid, height: 1.4)),
           const SizedBox(height: 14),
@@ -726,18 +720,15 @@ Widget _profileRankRow({
                 fontWeight: FontWeight.w800,
                 color: rank == 1 ? AppTheme.primaryGreen : AppTheme.textMid)),
         const SizedBox(width: 14),
-        CircleAvatar(
+        SafeAvatar(
           radius: 16,
-          backgroundColor: AppTheme.softGreen,
-          backgroundImage:
-              stat.photoUrl != null ? NetworkImage(stat.photoUrl!) : null,
-          child: stat.photoUrl == null
-              ? Text(stat.displayName.isNotEmpty ? stat.displayName[0] : 'U',
-                  style: const TextStyle(
-                      color: AppTheme.primaryGreen,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 12))
-              : null,
+          photoUrl: stat.photoUrl,
+          displayName: stat.displayName,
+          textStyle: const TextStyle(
+            color: AppTheme.primaryGreen,
+            fontWeight: FontWeight.w700,
+            fontSize: 12,
+          ),
         ),
         const SizedBox(width: 10),
         Expanded(

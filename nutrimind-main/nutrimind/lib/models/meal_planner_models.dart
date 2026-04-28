@@ -47,6 +47,7 @@ class PlannerFoodItem {
     this.carbs = 0,
     this.fat = 0,
     this.ingredients = const [],
+    this.imageUrl,
     this.mealType = '',
     this.category = '',
     this.servingSize = '',
@@ -65,6 +66,7 @@ class PlannerFoodItem {
   final int carbs;
   final int fat;
   final List<String> ingredients;
+  final String? imageUrl;
   final String mealType;
   final String category;
   final String servingSize;
@@ -110,6 +112,14 @@ class MealBasket {
   bool get hasOnlyPricedItems => items.every((item) => item.hasPrice);
 
   List<String> get itemNames => items.map((item) => item.name).toList();
+
+  String? get imageUrl {
+    for (final item in items) {
+      final url = item.imageUrl?.trim();
+      if (url != null && url.isNotEmpty) return url;
+    }
+    return null;
+  }
 }
 
 /// Full day plan from BMR split (35% / 30% / 25% / 10%).

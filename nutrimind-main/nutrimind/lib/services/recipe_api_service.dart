@@ -32,7 +32,7 @@ class RecipeApiConfig {
   static String get disclosure {
     if (configurationError != null) return configurationError!;
     if (usesLocalDevelopmentDefault) {
-      return 'Prototype Recipe API: using local development URL and sample backend data when available.';
+      return 'Recipe API: using local development URL and sample data when available.';
     }
     return 'Recipe API configured by RECIPE_API_BASE_URL. Verify backend data source before production release.';
   }

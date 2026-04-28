@@ -28,7 +28,10 @@ class NutribotService {
   final String _model;
   final http.Client _client;
 
+  bool _lastWasFallback = false;
+
   bool get isConfigured => _apiKey.isNotEmpty;
+  bool get lastResponseWasFallback => _lastWasFallback;
 
   Stream<String> sendMessage({
     required String userMessage,
@@ -46,6 +49,8 @@ class NutribotService {
         .toList();
 
     String fullResponse;
+
+    _lastWasFallback = false;
 
     try {
       if (!isConfigured) {
@@ -89,7 +94,12 @@ class NutribotService {
 
       fullResponse = text.trim();
     } catch (e) {
-      developer.log('NutribotService error: $e', level: 900);
+      developer.log(
+        'NutriBot fallback response used',
+        error: e,
+        level: 800,
+      );
+      _lastWasFallback = true;
       fullResponse = _mockResponse(userMessage, context);
     }
 

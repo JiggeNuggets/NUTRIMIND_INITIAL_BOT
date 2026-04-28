@@ -12,6 +12,7 @@
     "ingredients": ["Pomelo", "Davao Honey", "Mint Leaves", "Lime Juice", "Chia Seeds"],
     "dietLabels": ["Low-Fat", "Vegan", "Gluten-Free"],
     "healthLabels": ["Sugar-Conscious", "Vegan", "Dairy-Free"],
+    "imageUrl": "https://images.unsplash.com/photo-1490645935967-10de6ba17061?auto=format&fit=crop&w=400&q=80",
     "cookingSteps": [
       "Peel and segment the pomelo, removing all white membrane.",
       "Arrange segments in a wide bowl.",
@@ -20,7 +21,8 @@
       "Sprinkle chia seeds and garnish with fresh mint leaves.",
       "Chill for 10 minutes before serving."
     ],
-    "source": "NutriMind prototype — academic use only (CC BY-NC 4.0 reference: datahiveai/recipes-with-nutrition)"
+    "source": "NutriMind prototype — academic use only (CC BY-NC 4.0 reference: datahiveai/recipes-with-nutrition)",
+    "isPrototypeDataset": true
   },
   {
     "id": "r002",
@@ -35,6 +37,7 @@
     "ingredients": ["Malunggay Leaves", "Eggs", "Garlic", "Onion", "Fish Sauce", "Chicken Broth"],
     "dietLabels": ["Low-Carb", "High-Protein", "Gluten-Free"],
     "healthLabels": ["Sugar-Conscious", "Gluten-Free"],
+    "imageUrl": "https://images.unsplash.com/photo-1547592166-23ac45744acd?auto=format&fit=crop&w=400&q=80",
     "cookingSteps": [
       "Sauté minced garlic and onion in a pot with a little oil until fragrant.",
       "Pour in 2 cups of chicken broth and bring to a gentle boil.",
@@ -43,7 +46,8 @@
       "Add a generous handful of malunggay leaves.",
       "Cook for 1 minute more, taste for seasoning, and serve hot."
     ],
-    "source": "NutriMind prototype — academic use only (CC BY-NC 4.0 reference: datahiveai/recipes-with-nutrition)"
+    "source": "NutriMind prototype — academic use only (CC BY-NC 4.0 reference: datahiveai/recipes-with-nutrition)",
+    "isPrototypeDataset": true
   },
   {
     "id": "r003",
@@ -58,6 +62,7 @@
     "ingredients": ["Bangus (Milkfish)", "Tamarind Powder", "Radish", "String Beans", "Tomato", "Onion", "Water Spinach"],
     "dietLabels": ["High-Protein", "Gluten-Free", "Low-Fat"],
     "healthLabels": ["Gluten-Free", "Dairy-Free", "Sugar-Conscious"],
+    "imageUrl": "https://images.unsplash.com/photo-1574484284002-952d92456975?auto=format&fit=crop&w=400&q=80",
     "cookingSteps": [
       "Clean and cut bangus into serving pieces; season with salt.",
       "In a pot, bring 4 cups of water to a boil with tomatoes and onion.",
@@ -67,7 +72,8 @@
       "Add water spinach (kangkong) and cook for 1 minute.",
       "Adjust sourness and salt to taste. Serve with steamed rice."
     ],
-    "source": "NutriMind prototype — academic use only (CC BY-NC 4.0 reference: datahiveai/recipes-with-nutrition)"
+    "source": "NutriMind prototype — academic use only (CC BY-NC 4.0 reference: datahiveai/recipes-with-nutrition)",
+    "isPrototypeDataset": true
   },
   {
     "id": "r004",
@@ -82,6 +88,7 @@
     "ingredients": ["Yellowfin Tuna Steak", "Soy Sauce", "Calamansi", "Garlic", "Ginger", "Black Pepper"],
     "dietLabels": ["High-Protein", "Low-Carb", "Gluten-Free"],
     "healthLabels": ["Sugar-Conscious", "Dairy-Free", "Gluten-Free"],
+    "imageUrl": "https://images.unsplash.com/photo-1519708227418-c8fd9a32b7a2?auto=format&fit=crop&w=400&q=80",
     "cookingSteps": [
       "Combine soy sauce, calamansi juice, minced garlic, and grated ginger in a bowl.",
       "Marinate tuna steak in the mixture for at least 20 minutes.",
@@ -90,7 +97,8 @@
       "Season with freshly cracked black pepper.",
       "Serve with steamed vegetables or plain rice."
     ],
-    "source": "NutriMind prototype — academic use only (CC BY-NC 4.0 reference: datahiveai/recipes-with-nutrition)"
+    "source": "NutriMind prototype — academic use only (CC BY-NC 4.0 reference: datahiveai/recipes-with-nutrition)",
+    "isPrototypeDataset": true
   },
   {
     "id": "r005",
@@ -105,6 +113,7 @@
     "ingredients": ["Chicken Pieces", "Chayote", "Malunggay Leaves", "Ginger", "Onion", "Fish Sauce", "Rice Washing"],
     "dietLabels": ["High-Protein", "Gluten-Free", "Low-Fat"],
     "healthLabels": ["Dairy-Free", "Gluten-Free", "Sugar-Conscious"],
+    "imageUrl": "https://images.unsplash.com/photo-1604908176997-125f25cc6f3d?auto=format&fit=crop&w=400&q=80",
     "cookingSteps": [
       "Sauté sliced ginger and onion in oil until softened.",
       "Add chicken pieces and brown lightly on all sides.",
@@ -114,7 +123,8 @@
       "Stir in malunggay leaves and cook 1 more minute.",
       "Serve hot with steamed rice."
     ],
-    "source": "NutriMind prototype — academic use only (CC BY-NC 4.0 reference: datahiveai/recipes-with-nutrition)"
+    "source": "NutriMind prototype — academic use only (CC BY-NC 4.0 reference: datahiveai/recipes-with-nutrition)",
+    "isPrototypeDataset": true
   },
   {
     "id": "r006",
@@ -129,6 +139,7 @@
     "ingredients": ["Saba Banana", "Glutinous Rice", "Coconut Milk", "Brown Sugar", "Salt"],
     "dietLabels": ["Vegan", "Gluten-Free", "Low-Fat"],
     "healthLabels": ["Vegan", "Dairy-Free", "Gluten-Free"],
+    "imageUrl": "https://images.unsplash.com/photo-1547592180-85f173990554?auto=format&fit=crop&w=400&q=80",
     "cookingSteps": [
       "Rinse glutinous rice and combine with 2 cups of water in a pot.",
       "Bring to a boil, then reduce to a simmer, stirring occasionally.",
@@ -137,7 +148,8 @@
       "Simmer 5 more minutes, stirring gently.",
       "Add a pinch of salt to balance sweetness. Serve warm."
     ],
-    "source": "NutriMind prototype — academic use only (CC BY-NC 4.0 reference: datahiveai/recipes-with-nutrition)"
+    "source": "NutriMind prototype — academic use only (CC BY-NC 4.0 reference: datahiveai/recipes-with-nutrition)",
+    "isPrototypeDataset": true
   },
   {
     "id": "r007",
@@ -152,6 +164,7 @@
     "ingredients": ["Eggs", "Canned Tuna", "Onion", "Tomato", "Salt", "Black Pepper", "Cooking Oil"],
     "dietLabels": ["High-Protein", "Low-Carb", "Gluten-Free"],
     "healthLabels": ["Sugar-Conscious", "Gluten-Free", "Dairy-Free"],
+    "imageUrl": "https://images.unsplash.com/photo-1525351484163-7529414344d8?auto=format&fit=crop&w=400&q=80",
     "cookingSteps": [
       "Drain canned tuna and set aside.",
       "Beat 3 eggs with a pinch of salt and black pepper.",
@@ -161,7 +174,8 @@
       "Cook on medium heat; fold omelette in half when edges set.",
       "Serve immediately."
     ],
-    "source": "NutriMind prototype — academic use only (CC BY-NC 4.0 reference: datahiveai/recipes-with-nutrition)"
+    "source": "NutriMind prototype — academic use only (CC BY-NC 4.0 reference: datahiveai/recipes-with-nutrition)",
+    "isPrototypeDataset": true
   },
   {
     "id": "r008",
@@ -176,6 +190,7 @@
     "ingredients": ["Tilapia", "Garlic", "Salt", "Pepper", "Lemon Grass", "Sitaw (String Beans)", "Squash"],
     "dietLabels": ["High-Protein", "Low-Fat", "Gluten-Free"],
     "healthLabels": ["Dairy-Free", "Gluten-Free", "Sugar-Conscious"],
+    "imageUrl": "https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=400&q=80",
     "cookingSteps": [
       "Score the tilapia and rub with salt, pepper, and minced garlic.",
       "Stuff the cavity with lemon grass.",
@@ -184,7 +199,8 @@
       "Season vegetables with fish sauce and a pinch of sugar.",
       "Plate grilled tilapia alongside the vegetables."
     ],
-    "source": "NutriMind prototype — academic use only (CC BY-NC 4.0 reference: datahiveai/recipes-with-nutrition)"
+    "source": "NutriMind prototype — academic use only (CC BY-NC 4.0 reference: datahiveai/recipes-with-nutrition)",
+    "isPrototypeDataset": true
   },
   {
     "id": "r009",
@@ -199,6 +215,7 @@
     "ingredients": ["Ampalaya (Bitter Melon)", "Okra", "Eggplant", "Squash", "Tomato", "Onion", "Bagoong", "Garlic"],
     "dietLabels": ["Vegan", "Low-Fat", "Gluten-Free"],
     "healthLabels": ["Vegan", "Dairy-Free", "Sugar-Conscious"],
+    "imageUrl": "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?auto=format&fit=crop&w=400&q=80",
     "cookingSteps": [
       "Sauté garlic, onion, and tomato in oil until softened.",
       "Add bagoong and stir for 1 minute.",
@@ -207,7 +224,8 @@
       "Add bitter melon last; cook until all vegetables are tender but not mushy.",
       "Adjust saltiness with more bagoong if needed. Serve with rice."
     ],
-    "source": "NutriMind prototype — academic use only (CC BY-NC 4.0 reference: datahiveai/recipes-with-nutrition)"
+    "source": "NutriMind prototype — academic use only (CC BY-NC 4.0 reference: datahiveai/recipes-with-nutrition)",
+    "isPrototypeDataset": true
   },
   {
     "id": "r010",
@@ -222,6 +240,7 @@
     "ingredients": ["Chicken Pieces", "Soy Sauce", "White Vinegar", "Garlic", "Bay Leaves", "Black Peppercorns"],
     "dietLabels": ["High-Protein", "Low-Carb", "Gluten-Free"],
     "healthLabels": ["Dairy-Free", "Sugar-Conscious"],
+    "imageUrl": "https://images.unsplash.com/photo-1598103442097-8b74394b95c8?auto=format&fit=crop&w=400&q=80",
     "cookingSteps": [
       "Combine chicken, soy sauce, vinegar, crushed garlic, bay leaves, and peppercorns in a pot.",
       "Marinate for at least 30 minutes (or overnight for deeper flavour).",
@@ -230,7 +249,8 @@
       "When sauce reduces and chicken starts to sizzle, brown slightly.",
       "Serve hot with steamed white rice."
     ],
-    "source": "NutriMind prototype — academic use only (CC BY-NC 4.0 reference: datahiveai/recipes-with-nutrition)"
+    "source": "NutriMind prototype — academic use only (CC BY-NC 4.0 reference: datahiveai/recipes-with-nutrition)",
+    "isPrototypeDataset": true
   },
   {
     "id": "r011",
@@ -245,6 +265,7 @@
     "ingredients": ["Durian Flesh", "Coconut Milk", "Banana", "Granola", "Chia Seeds", "Honey"],
     "dietLabels": ["Vegan", "Gluten-Free", "High-Fibre"],
     "healthLabels": ["Vegan", "Dairy-Free", "Gluten-Free"],
+    "imageUrl": "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=400&q=80",
     "cookingSteps": [
       "Blend durian flesh, half a banana, and coconut milk until smooth.",
       "Pour into a wide bowl.",
@@ -253,7 +274,8 @@
       "Drizzle with Davao honey.",
       "Serve immediately while cold."
     ],
-    "source": "NutriMind prototype — academic use only (CC BY-NC 4.0 reference: datahiveai/recipes-with-nutrition)"
+    "source": "NutriMind prototype — academic use only (CC BY-NC 4.0 reference: datahiveai/recipes-with-nutrition)",
+    "isPrototypeDataset": true
   },
   {
     "id": "r012",
@@ -268,6 +290,7 @@
     "ingredients": ["Lumpia Wrapper", "Tofu", "Cabbage", "Carrots", "Singkamas (Jicama)", "Garlic", "Peanut Sauce"],
     "dietLabels": ["Vegetarian", "Low-Fat"],
     "healthLabels": ["Vegetarian", "Sugar-Conscious"],
+    "imageUrl": "https://images.unsplash.com/photo-1563245372-f21724e3856d?auto=format&fit=crop&w=400&q=80",
     "cookingSteps": [
       "Sauté garlic, then add tofu cubes and cook until lightly golden.",
       "Add shredded cabbage, julienned carrots, and singkamas.",
@@ -276,7 +299,8 @@
       "Lay lumpia wrapper flat, spoon filling in the centre, and roll tightly.",
       "Drizzle with homemade or store-bought peanut sauce before serving."
     ],
-    "source": "NutriMind prototype — academic use only (CC BY-NC 4.0 reference: datahiveai/recipes-with-nutrition)"
+    "source": "NutriMind prototype — academic use only (CC BY-NC 4.0 reference: datahiveai/recipes-with-nutrition)",
+    "isPrototypeDataset": true
   },
   {
     "id": "r013",
@@ -291,6 +315,7 @@
     "ingredients": ["Young Corn (Mais)", "Coconut Milk", "Glutinous Rice", "Sugar", "Salt"],
     "dietLabels": ["Vegan", "Gluten-Free"],
     "healthLabels": ["Vegan", "Dairy-Free", "Gluten-Free"],
+    "imageUrl": "https://images.unsplash.com/photo-1555243896-c709bfa0b564?auto=format&fit=crop&w=400&q=80",
     "cookingSteps": [
       "Rinse glutinous rice and cook in 1.5 cups water until soft.",
       "Add corn kernels (sliced from cob) and stir.",
@@ -299,7 +324,8 @@
       "Simmer on low heat for 5 minutes, stirring constantly.",
       "Serve warm or chilled."
     ],
-    "source": "NutriMind prototype — academic use only (CC BY-NC 4.0 reference: datahiveai/recipes-with-nutrition)"
+    "source": "NutriMind prototype — academic use only (CC BY-NC 4.0 reference: datahiveai/recipes-with-nutrition)",
+    "isPrototypeDataset": true
   },
   {
     "id": "r014",
@@ -314,6 +340,7 @@
     "ingredients": ["Chicken Pieces", "Glutinous Rice", "Ginger", "Garlic", "Onion", "Fish Sauce", "Boiled Egg", "Spring Onion"],
     "dietLabels": ["High-Protein", "Gluten-Free"],
     "healthLabels": ["Gluten-Free", "Dairy-Free", "Sugar-Conscious"],
+    "imageUrl": "https://images.unsplash.com/photo-1516901408009-234d847ef107?auto=format&fit=crop&w=400&q=80",
     "cookingSteps": [
       "Sauté garlic, onion, and ginger in a large pot with oil.",
       "Add chicken pieces and brown on all sides.",
@@ -323,7 +350,8 @@
       "Season with fish sauce; add more water if too thick.",
       "Serve topped with sliced boiled egg, spring onions, and fried garlic."
     ],
-    "source": "NutriMind prototype — academic use only (CC BY-NC 4.0 reference: datahiveai/recipes-with-nutrition)"
+    "source": "NutriMind prototype — academic use only (CC BY-NC 4.0 reference: datahiveai/recipes-with-nutrition)",
+    "isPrototypeDataset": true
   },
   {
     "id": "r015",
@@ -338,6 +366,7 @@
     "ingredients": ["Glutinous Rice", "Tablea (Cacao)", "Sugar", "Evaporated Milk", "Salt"],
     "dietLabels": ["Vegetarian", "Gluten-Free"],
     "healthLabels": ["Vegetarian", "Gluten-Free", "Sugar-Conscious"],
+    "imageUrl": "https://images.unsplash.com/photo-1542528180-1c2803fa048d?auto=format&fit=crop&w=400&q=80",
     "cookingSteps": [
       "Cook glutinous rice in 3 cups of water over medium heat, stirring often.",
       "Once rice is half-cooked, add crushed tablea discs.",
@@ -346,7 +375,8 @@
       "Simmer on low until desired consistency is reached.",
       "Serve in bowls drizzled with evaporated milk."
     ],
-    "source": "NutriMind prototype — academic use only (CC BY-NC 4.0 reference: datahiveai/recipes-with-nutrition)"
+    "source": "NutriMind prototype — academic use only (CC BY-NC 4.0 reference: datahiveai/recipes-with-nutrition)",
+    "isPrototypeDataset": true
   },
   {
     "id": "r016",
@@ -361,6 +391,7 @@
     "ingredients": ["Mung Beans (Monggo)", "Malunggay Leaves", "Garlic", "Onion", "Tomato", "Fish Sauce"],
     "dietLabels": ["Vegan", "High-Protein", "Gluten-Free", "Low-Fat"],
     "healthLabels": ["Vegan", "Dairy-Free", "Gluten-Free", "Sugar-Conscious"],
+    "imageUrl": "https://images.unsplash.com/photo-1543393440-672ef47d43a4?auto=format&fit=crop&w=400&q=80",
     "cookingSteps": [
       "Rinse and soak mung beans for 30 minutes, then drain.",
       "Sauté garlic, onion, and tomato in a pot until softened.",
@@ -370,7 +401,8 @@
       "Add malunggay leaves and cook for 2 more minutes.",
       "Serve hot with steamed rice."
     ],
-    "source": "NutriMind prototype — academic use only (CC BY-NC 4.0 reference: datahiveai/recipes-with-nutrition)"
+    "source": "NutriMind prototype — academic use only (CC BY-NC 4.0 reference: datahiveai/recipes-with-nutrition)",
+    "isPrototypeDataset": true
   },
   {
     "id": "r017",
@@ -385,6 +417,7 @@
     "ingredients": ["Eggplant (Talong)", "Eggs", "Salt", "Black Pepper", "Cooking Oil"],
     "dietLabels": ["Vegetarian", "Low-Carb", "Gluten-Free"],
     "healthLabels": ["Vegetarian", "Gluten-Free", "Dairy-Free"],
+    "imageUrl": "https://images.unsplash.com/photo-1615485500704-8e3b5905e9bd?auto=format&fit=crop&w=400&q=80",
     "cookingSteps": [
       "Roast or grill whole eggplants over a flame until skin is charred and flesh is soft.",
       "Peel skin while hot, keeping the stem intact.",
@@ -394,7 +427,8 @@
       "Pan-fry in hot oil for 3 minutes per side until golden.",
       "Serve with banana ketchup or spiced vinegar."
     ],
-    "source": "NutriMind prototype — academic use only (CC BY-NC 4.0 reference: datahiveai/recipes-with-nutrition)"
+    "source": "NutriMind prototype — academic use only (CC BY-NC 4.0 reference: datahiveai/recipes-with-nutrition)",
+    "isPrototypeDataset": true
   },
   {
     "id": "r018",
@@ -409,6 +443,7 @@
     "ingredients": ["Bangus (Milkfish)", "White Vinegar", "Ginger", "Garlic", "Bitter Melon", "Eggplant", "Salt", "Peppercorns"],
     "dietLabels": ["High-Protein", "Low-Fat", "Gluten-Free"],
     "healthLabels": ["Dairy-Free", "Gluten-Free", "Sugar-Conscious"],
+    "imageUrl": "https://images.unsplash.com/photo-1565557025-f8ab83c78f8b?auto=format&fit=crop&w=400&q=80",
     "cookingSteps": [
       "Clean bangus and cut into serving pieces.",
       "Arrange ginger slices, garlic, and peppercorns at the bottom of a pot.",
@@ -418,7 +453,8 @@
       "Season with salt; bring to a boil without stirring.",
       "Reduce heat and simmer for 15 minutes. Serve with rice."
     ],
-    "source": "NutriMind prototype — academic use only (CC BY-NC 4.0 reference: datahiveai/recipes-with-nutrition)"
+    "source": "NutriMind prototype — academic use only (CC BY-NC 4.0 reference: datahiveai/recipes-with-nutrition)",
+    "isPrototypeDataset": true
   },
   {
     "id": "r019",
@@ -433,6 +469,7 @@
     "ingredients": ["Cooked Rice", "Malunggay Leaves", "Eggs", "Garlic", "Soy Sauce", "Cooking Oil", "Salt"],
     "dietLabels": ["Vegetarian", "Gluten-Free"],
     "healthLabels": ["Vegetarian", "Dairy-Free", "Sugar-Conscious"],
+    "imageUrl": "https://images.unsplash.com/photo-1603133872878-684f208fb84b?auto=format&fit=crop&w=400&q=80",
     "cookingSteps": [
       "Heat oil in a wok or large pan over high heat.",
       "Fry minced garlic until golden and fragrant.",
@@ -442,7 +479,8 @@
       "Fold in malunggay leaves and stir-fry for 1 more minute.",
       "Serve immediately."
     ],
-    "source": "NutriMind prototype — academic use only (CC BY-NC 4.0 reference: datahiveai/recipes-with-nutrition)"
+    "source": "NutriMind prototype — academic use only (CC BY-NC 4.0 reference: datahiveai/recipes-with-nutrition)",
+    "isPrototypeDataset": true
   },
   {
     "id": "r020",
@@ -457,6 +495,7 @@
     "ingredients": ["Pork Belly (Liempo)", "Soy Sauce", "Calamansi", "Garlic", "Brown Sugar", "Banana Ketchup", "Papaya Atchara"],
     "dietLabels": ["High-Protein", "Gluten-Free"],
     "healthLabels": ["Dairy-Free", "Sugar-Conscious"],
+    "imageUrl": "https://images.unsplash.com/photo-1529694157872-4e0c0f3b238b?auto=format&fit=crop&w=400&q=80",
     "cookingSteps": [
       "Mix soy sauce, calamansi juice, minced garlic, brown sugar, and banana ketchup for the marinade.",
       "Score pork belly and marinate for at least 2 hours or overnight.",
@@ -465,7 +504,8 @@
       "Serve with papaya atchara and steamed rice.",
       "Garnish with calamansi halves on the side."
     ],
-    "source": "NutriMind prototype — academic use only (CC BY-NC 4.0 reference: datahiveai/recipes-with-nutrition)"
+    "source": "NutriMind prototype — academic use only (CC BY-NC 4.0 reference: datahiveai/recipes-with-nutrition)",
+    "isPrototypeDataset": true
   },
   {
     "id": "r021",
@@ -480,6 +520,7 @@
     "ingredients": ["Squash", "String Beans (Sitaw)", "Corn on the Cob", "Malunggay", "Onion", "Salt"],
     "dietLabels": ["Vegan", "Low-Fat", "Gluten-Free", "Low-Calorie"],
     "healthLabels": ["Vegan", "Dairy-Free", "Gluten-Free", "Sugar-Conscious"],
+    "imageUrl": "https://images.unsplash.com/photo-1476124369491-07196e014f24?auto=format&fit=crop&w=400&q=80",
     "cookingSteps": [
       "Bring 3 cups of water to a boil with onion slices.",
       "Add corn cut into pieces; cook for 5 minutes.",
@@ -488,7 +529,8 @@
       "Add malunggay leaves and season with salt.",
       "Cook for 1 final minute. Serve as a main dish with rice."
     ],
-    "source": "NutriMind prototype — academic use only (CC BY-NC 4.0 reference: datahiveai/recipes-with-nutrition)"
+    "source": "NutriMind prototype — academic use only (CC BY-NC 4.0 reference: datahiveai/recipes-with-nutrition)",
+    "isPrototypeDataset": true
   },
   {
     "id": "r022",
@@ -503,6 +545,7 @@
     "ingredients": ["Pork Ears & Belly", "Onion", "Chilli", "Calamansi", "Mayonnaise", "Soy Sauce", "Salt", "Pepper"],
     "dietLabels": ["High-Protein", "Low-Carb", "Gluten-Free"],
     "healthLabels": ["Dairy-Free", "Sugar-Conscious"],
+    "imageUrl": "https://images.unsplash.com/photo-1558030006-450675393462?auto=format&fit=crop&w=400&q=80",
     "cookingSteps": [
       "Boil pork ears and belly until tender; let cool.",
       "Grill or broil until slightly charred for smokiness.",
@@ -512,6 +555,7 @@
       "Top with mayonnaise and squeeze calamansi juice over.",
       "Serve sizzling immediately."
     ],
-    "source": "NutriMind prototype — academic use only (CC BY-NC 4.0 reference: datahiveai/recipes-with-nutrition)"
+    "source": "NutriMind prototype — academic use only (CC BY-NC 4.0 reference: datahiveai/recipes-with-nutrition)",
+    "isPrototypeDataset": true
   }
 ]

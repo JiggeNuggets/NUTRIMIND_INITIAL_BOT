@@ -120,6 +120,33 @@ class _BotBubble extends StatelessWidget {
                           const SizedBox(height: 4),
                           _StreamingCursor(),
                         ],
+                        if (!message.isStreaming && message.isFallback) ...[
+                          const SizedBox(height: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFFFF3CD),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.wifi_off_rounded,
+                                    size: 12, color: Color(0xFF856404)),
+                                SizedBox(width: 4),
+                                Text(
+                                  'Generic tips — NutriBot is offline',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    color: Color(0xFF856404),
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ],
                     ),
             ),

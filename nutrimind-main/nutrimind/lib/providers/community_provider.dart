@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
 import '../services/firestore_service.dart';
 import '../services/engagement_service.dart';
@@ -17,11 +18,13 @@ class CommunityProvider extends ChangeNotifier {
   bool _loading = false;
   String? _error;
   String _activeCategory = 'Trending';
+  bool _isAddingComment = false;
 
   List<PostModel> get posts => _posts;
   bool get loading => _loading;
   String? get error => _error;
   String get activeCategory => _activeCategory;
+  bool get isAddingComment => _isAddingComment;
 
   void listenToPosts(String category) {
     _activeCategory = category;
@@ -85,8 +88,13 @@ class CommunityProvider extends ChangeNotifier {
       _loading = false;
       notifyListeners();
       return true;
-    } catch (e) {
-      _error = e.toString();
+    } catch (e, st) {
+      developer.log(
+        'createPost failed',
+        error: e,
+        stackTrace: st,
+      );
+      _error = 'Could not create post. Please try again.';
       _loading = false;
       notifyListeners();
       return false;
@@ -105,18 +113,15 @@ class CommunityProvider extends ChangeNotifier {
     final idx = _posts.indexWhere((p) => p.id == postId);
     final post = idx == -1 ? targetPost : _posts[idx];
 
-    // Use likeCount for optimistic UI (scalable subcollection approach)
-    final currentlyLiked = post.likeCount > 0 && post.likes.contains(uid);
+    // Query Firestore for the actual like state (source of truth)
+    final currentlyLiked =
+        await _firestoreService.isPostLikedBy(postId, uid);
+
+    // Optimistic UI update
     final newLikeCount =
         currentlyLiked ? post.likeCount - 1 : post.likeCount + 1;
-    final newLikes = List<String>.from(post.likes);
-    if (currentlyLiked) {
-      newLikes.remove(uid);
-    } else {
-      newLikes.add(uid);
-    }
     if (idx != -1) {
-      _posts[idx] = post.copyWith(likes: newLikes, likeCount: newLikeCount);
+      _posts[idx] = post.copyWith(likeCount: newLikeCount);
       notifyListeners();
     }
 
@@ -150,9 +155,9 @@ class CommunityProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> deletePost(String postId) async {
+  Future<void> deletePost(String postId, String currentUserId) async {
     try {
-      await _firestoreService.deletePost(postId);
+      await _firestoreService.deletePost(postId, currentUserId);
       _posts.removeWhere((p) => p.id == postId);
       _error = null;
       notifyListeners();
@@ -164,6 +169,10 @@ class CommunityProvider extends ChangeNotifier {
   }
 
   Future<void> addComment(CommentModel comment) async {
+    if (_isAddingComment) return;
+    _isAddingComment = true;
+    notifyListeners();
+
     try {
       await _firestoreService.addComment(comment);
       await _tryRecordActivity(
@@ -199,10 +208,18 @@ class CommunityProvider extends ChangeNotifier {
       }
       _error = null;
       notifyListeners();
-    } catch (e) {
+    } catch (e, st) {
+      developer.log(
+        'addComment failed',
+        error: e,
+        stackTrace: st,
+      );
       _error = 'Could not add comment. Please try again.';
       notifyListeners();
       rethrow;
+    } finally {
+      _isAddingComment = false;
+      notifyListeners();
     }
   }
 

@@ -19,6 +19,7 @@ class NutribotMessage {
   final bool isUser;
   final DateTime timestamp;
   final bool isStreaming;
+  final bool isFallback;
 
   NutribotMessage({
     String? id,
@@ -26,16 +27,22 @@ class NutribotMessage {
     required this.isUser,
     DateTime? timestamp,
     this.isStreaming = false,
+    this.isFallback = false,
   })  : id = id ?? const Uuid().v4(),
         timestamp = timestamp ?? DateTime.now();
 
-  NutribotMessage copyWith({String? content, bool? isStreaming}) =>
+  NutribotMessage copyWith({
+    String? content,
+    bool? isStreaming,
+    bool? isFallback,
+  }) =>
       NutribotMessage(
         id: id,
         content: content ?? this.content,
         isUser: isUser,
         timestamp: timestamp,
         isStreaming: isStreaming ?? this.isStreaming,
+        isFallback: isFallback ?? this.isFallback,
       );
 }
 

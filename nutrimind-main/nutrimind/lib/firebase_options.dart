@@ -21,10 +21,7 @@ class DefaultFirebaseOptions {
     }
     switch (defaultTargetPlatform) {
       case TargetPlatform.android:
-        throw UnsupportedError(
-          'DefaultFirebaseOptions have not been configured for android - '
-          'you can reconfigure this by running the FlutterFire CLI again.',
-        );
+        return android;
       case TargetPlatform.iOS:
         throw UnsupportedError(
           'DefaultFirebaseOptions have not been configured for ios - '
@@ -50,23 +47,29 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'AIzaSyAec4rx0qxB7WJdydlgd70NOH9vkJ5LbBc',
-    appId: '1:937676159063:web:03f9f4328a4cb17db98b12',
-    messagingSenderId: '937676159063',
-    projectId: 'nutrimind-20f1d',
-    authDomain: 'nutrimind-20f1d.firebaseapp.com',
-    storageBucket: 'nutrimind-20f1d.firebasestorage.app',
-    measurementId: 'G-SN9BWH42J5',
+    apiKey: 'AIzaSyDp1mw7RCa5ddo7-VYucMC5jJXh1ZyDhBA',
+    appId: '1:959796329620:web:1da791a90227b31b76c881',
+    messagingSenderId: '959796329620',
+    projectId: 'nutrimind-main',
+    authDomain: 'nutrimind-main.firebaseapp.com',
+    storageBucket: 'nutrimind-main.firebasestorage.app',
   );
 
   static const FirebaseOptions windows = FirebaseOptions(
-    apiKey: 'AIzaSyAec4rx0qxB7WJdydlgd70NOH9vkJ5LbBc',
-    appId: '1:937676159063:web:1e8d54d90e209f3db98b12',
-    messagingSenderId: '937676159063',
-    projectId: 'nutrimind-20f1d',
-    authDomain: 'nutrimind-20f1d.firebaseapp.com',
-    storageBucket: 'nutrimind-20f1d.firebasestorage.app',
-    measurementId: 'G-3Z99R5KXEN',
+    apiKey: 'AIzaSyDp1mw7RCa5ddo7-VYucMC5jJXh1ZyDhBA',
+    appId: '1:959796329620:web:ceb2310cab076d6b76c881',
+    messagingSenderId: '959796329620',
+    projectId: 'nutrimind-main',
+    authDomain: 'nutrimind-main.firebaseapp.com',
+    storageBucket: 'nutrimind-main.firebasestorage.app',
+  );
+
+  static const FirebaseOptions android = FirebaseOptions(
+    apiKey: 'AIzaSyD-NeQ4TBj2ilDQ2w586Zf8fzyoQJFpfwg',
+    appId: '1:959796329620:android:6bb885c34cbb523f76c881',
+    messagingSenderId: '959796329620',
+    projectId: 'nutrimind-main',
+    storageBucket: 'nutrimind-main.firebasestorage.app',
   );
 
 }

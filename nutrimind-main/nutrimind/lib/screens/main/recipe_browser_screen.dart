@@ -7,8 +7,10 @@ import '../../models/nutribot_models.dart';
 import '../../models/recipe_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/recipe_api_service.dart';
+import '../../services/recipe_dataset_service.dart';
 import '../../theme/modern_app_theme.dart';
 import '../../widgets/nutribot/nutribot_launcher.dart';
+import '../../widgets/safe_image.dart';
 
 class RecipeBrowserScreen extends StatefulWidget {
   const RecipeBrowserScreen({super.key});
@@ -18,6 +20,10 @@ class RecipeBrowserScreen extends StatefulWidget {
 }
 
 class _RecipeBrowserScreenState extends State<RecipeBrowserScreen> {
+  /// Set to true to use the bundled Davao local dataset instead of the API.
+  /// Set to false to re-enable the remote recipe API (localhost:8000).
+  static const bool _kLocalMode = true;
+
   static const int _defaultLimit = 50;
   static const List<(String value, String label)> _mealTypeOptions = [
     ('all', 'All'),
@@ -30,6 +36,7 @@ class _RecipeBrowserScreenState extends State<RecipeBrowserScreen> {
 
   late final TextEditingController _searchController;
   late final RecipeApiService _recipeApiService;
+  late final RecipeDatasetService _localDataset;
 
   Timer? _searchDebounce;
   List<RecipeModel> _recipes = const [];
@@ -45,7 +52,10 @@ class _RecipeBrowserScreenState extends State<RecipeBrowserScreen> {
     super.initState();
     _searchController = TextEditingController();
     _recipeApiService = RecipeApiService();
-    _dataNotice = _recipeApiService.disclosure;
+    _localDataset = RecipeDatasetService();
+    _dataNotice = _kLocalMode
+        ? RecipeDatasetService.prototypeDisclosure
+        : _recipeApiService.disclosure;
     _runInitialLoad();
   }
 
@@ -58,7 +68,7 @@ class _RecipeBrowserScreenState extends State<RecipeBrowserScreen> {
   }
 
   Future<void> _runInitialLoad() async {
-    await _checkHealth();
+    if (!_kLocalMode) await _checkHealth();
     await _loadRecipes();
   }
 
@@ -87,11 +97,16 @@ class _RecipeBrowserScreenState extends State<RecipeBrowserScreen> {
     });
 
     try {
-      final recipes = await _recipeApiService.fetchRecipes(
-        query: _searchController.text,
-        limit: _defaultLimit,
-        mealType: _selectedMealType == 'all' ? null : _selectedMealType,
-      );
+      final recipes = _kLocalMode
+          ? await _localDataset.filterRecipes(
+              mealType: _selectedMealType,
+              query: _searchController.text,
+            )
+          : await _recipeApiService.fetchRecipes(
+              query: _searchController.text,
+              limit: _defaultLimit,
+              mealType: _selectedMealType == 'all' ? null : _selectedMealType,
+            );
       if (!mounted || requestId != _requestId) return;
       setState(() {
         _recipes = recipes;
@@ -165,7 +180,9 @@ class _RecipeBrowserScreenState extends State<RecipeBrowserScreen> {
               borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
             ),
             child: FutureBuilder<RecipeModel>(
-              future: _recipeApiService.fetchRecipeById(recipe.id),
+              future: _kLocalMode
+                  ? Future.value(recipe)
+                  : _recipeApiService.fetchRecipeById(recipe.id),
               builder: (_, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(
@@ -203,20 +220,14 @@ class _RecipeBrowserScreenState extends State<RecipeBrowserScreen> {
                           ),
                         ),
                         const SizedBox(height: 20),
-                        ClipRRect(
+                        SafeFoodImage(
+                          imageUrl: detail.imageUrl,
+                          mealName: detail.recipeName,
+                          width: double.infinity,
+                          height: 220,
                           borderRadius: BorderRadius.circular(24),
-                          child: SizedBox(
-                            height: 220,
-                            width: double.infinity,
-                            child: detail.imageUrl == null
-                                ? _placeholderImage(iconSize: 42)
-                                : Image.network(
-                                    detail.imageUrl!,
-                                    fit: BoxFit.cover,
-                                    errorBuilder: (_, __, ___) =>
-                                        _placeholderImage(iconSize: 42),
-                                  ),
-                          ),
+                          placeholderIcon: Icons.restaurant_menu_outlined,
+                          placeholderColor: ModernAppTheme.primaryGreen,
                         ),
                         const SizedBox(height: 20),
                         _DataNoticeBox(
@@ -412,39 +423,69 @@ class _RecipeBrowserScreenState extends State<RecipeBrowserScreen> {
                 children: [
                   _buildSearchPanel(),
                   const SizedBox(height: 16),
-                  _DataNoticeBox(message: _dataNotice),
-                  const SizedBox(height: 12),
-                  if (!_backendHealthy)
+                  if (_kLocalMode)
                     Container(
                       width: double.infinity,
-                      margin: const EdgeInsets.only(bottom: 12),
-                      padding: const EdgeInsets.all(12),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 8),
                       decoration: BoxDecoration(
-                        color: ModernAppTheme.warmBlush,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(
-                          color: ModernAppTheme.warning.withValues(alpha: 0.25),
+                        color: ModernAppTheme.softGreen,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Row(
+                        children: [
+                          Icon(Icons.eco_outlined,
+                              size: 14, color: ModernAppTheme.primaryGreen),
+                          SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              'Davao local recipes — local sample dataset',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: ModernAppTheme.primaryGreen,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  else ...[
+                    _DataNoticeBox(message: _dataNotice),
+                    const SizedBox(height: 12),
+                    if (!_backendHealthy)
+                      Container(
+                        width: double.infinity,
+                        margin: const EdgeInsets.only(bottom: 12),
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: ModernAppTheme.warmBlush,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color:
+                                ModernAppTheme.warning.withValues(alpha: 0.25),
+                          ),
+                        ),
+                        child: const Text(
+                          'Backend health check did not succeed, but recipe requests may still work once the API is up.',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: ModernAppTheme.textDark,
+                          ),
                         ),
                       ),
-                      child: const Text(
-                        'Backend health check did not succeed, but recipe requests may still work once the API is up.',
-                        style: TextStyle(
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        'Recipe API: ${_recipeApiService.baseUrl}',
+                        style: const TextStyle(
                           fontSize: 12,
-                          color: ModernAppTheme.textDark,
+                          color: ModernAppTheme.textMid,
+                          fontWeight: FontWeight.w500,
                         ),
                       ),
                     ),
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      'Recipe API: ${_recipeApiService.baseUrl}',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: ModernAppTheme.textMid,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ),
+                  ],
                   const SizedBox(height: 10),
                   Expanded(
                     child: showInitialLoading
@@ -575,19 +616,14 @@ class _RecipeBrowserScreenState extends State<RecipeBrowserScreen> {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              ClipRRect(
+              SafeFoodImage(
+                imageUrl: recipe.imageUrl,
+                mealName: recipe.recipeName,
+                width: 96,
+                height: 96,
                 borderRadius: BorderRadius.circular(18),
-                child: SizedBox(
-                  width: 96,
-                  height: 96,
-                  child: recipe.imageUrl == null
-                      ? _placeholderImage()
-                      : Image.network(
-                          recipe.imageUrl!,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => _placeholderImage(),
-                        ),
-                ),
+                placeholderIcon: Icons.restaurant_menu_outlined,
+                placeholderColor: ModernAppTheme.primaryGreen,
               ),
               const SizedBox(width: 14),
               Expanded(
@@ -680,17 +716,6 @@ class _RecipeBrowserScreenState extends State<RecipeBrowserScreen> {
     );
   }
 
-  Widget _placeholderImage({double iconSize = 28}) {
-    return Container(
-      color: ModernAppTheme.softGreen,
-      alignment: Alignment.center,
-      child: Icon(
-        Icons.restaurant_menu_outlined,
-        size: iconSize,
-        color: ModernAppTheme.primaryGreen,
-      ),
-    );
-  }
 }
 
 class _StateBox extends StatelessWidget {

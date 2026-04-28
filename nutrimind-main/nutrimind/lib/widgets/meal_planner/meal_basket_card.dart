@@ -130,7 +130,7 @@ class MealBasketCard extends StatelessWidget {
                 if (basket.hasCalorieOnlyFallback) ...[
                   const SizedBox(height: 8),
                   const Text(
-                    'Fallback items are prototype calorie estimates and are not counted toward strict budget totals.',
+                    'Fallback items are estimated calorie values and are not counted toward strict budget totals.',
                     style: TextStyle(
                       fontSize: 11,
                       height: 1.35,

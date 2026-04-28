@@ -1,8 +1,8 @@
-import 'dart:typed_data';
 
 import 'package:camera/camera.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
@@ -194,6 +194,11 @@ class _FoodScannerScreenState extends State<FoodScannerScreen> {
   }
 
   Future<void> _pickImage(ImageSource source) async {
+    if (kIsWeb && source == ImageSource.camera) {
+      _showSnack('Camera is not available on web. Please upload an image instead.');
+      return _pickImage(ImageSource.gallery);
+    }
+
     try {
       final image = await _picker.pickImage(
         source: source,
@@ -205,9 +210,13 @@ class _FoodScannerScreenState extends State<FoodScannerScreen> {
 
       final bytes = await image.readAsBytes();
       _setPreview(bytes);
-    } catch (e) {
-      final sourceName = source == ImageSource.camera ? 'camera' : 'gallery';
-      _showSnack('Could not open $sourceName. Check app permissions.');
+    } on PlatformException catch (e) {
+      final message = e.code == 'camera_access_denied'
+          ? 'Camera permission was denied.'
+          : 'Could not open image picker. Please try again.';
+      _showSnack(message);
+    } catch (_) {
+      _showSnack('Could not select image. Please try again.');
     }
   }
 
@@ -500,6 +509,19 @@ class _FoodScannerScreenState extends State<FoodScannerScreen> {
 
     setState(() => _saving = true);
     try {
+      if (input.name.trim().isEmpty) {
+        _showSnack('Please enter a meal name before saving.');
+        return;
+      }
+      if (input.calories <= 0) {
+        _showSnack('Please enter valid calories before saving.');
+        return;
+      }
+      if (input.price < 0) {
+        _showSnack('Please enter a valid price before saving.');
+        return;
+      }
+
       final mealProvider = context.read<MealProvider>();
       final notifications = context.read<NotificationProvider>();
       await mealProvider.addManualMeal(

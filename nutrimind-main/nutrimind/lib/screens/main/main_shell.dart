@@ -30,7 +30,7 @@ class _MainShellState extends State<MainShell> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final uid = context.read<AuthProvider>().userModel?.uid;
-      if (uid != null) {
+      if (uid != null && uid.isNotEmpty) {
         context.read<MealProvider>().listenToMeals(uid);
         context.read<CommunityProvider>().listenToPosts('Trending');
         context.read<NotificationProvider>().setUser(uid);

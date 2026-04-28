@@ -156,11 +156,11 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
           behavior: SnackBarBehavior.floating,
         ));
       }
-    } catch (e) {
+    } catch (_) {
       if (!mounted) return;
       setState(() => _submitting = false);
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('Upload failed: $e'),
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Something went wrong. Please try again.'),
         backgroundColor: AppTheme.errorRed,
         behavior: SnackBarBehavior.floating,
       ));
