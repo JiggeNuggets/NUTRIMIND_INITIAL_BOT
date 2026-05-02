@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../theme/app_theme.dart';
 import '../../providers/auth_provider.dart';
-import '../main/main_shell.dart';
 import '../auth/login_screen.dart';
 import '../auth/register_screen.dart';
 
@@ -38,12 +37,12 @@ class _SplashScreenState extends State<SplashScreen>
 
   Future<void> _handleGoogle(BuildContext context) async {
     final auth = context.read<AuthProvider>();
-    final success = await auth.signInWithGoogle();
-    if (success && context.mounted) {
-      Navigator.pushReplacement(
-          context, MaterialPageRoute(builder: (_) => const MainShell()));
+    await auth.signInWithGoogle();
+    if (auth.firebaseUser != null && context.mounted) {
+      Navigator.popUntil(context, (route) => route.isFirst);
     } else if (auth.error != null && context.mounted) {
-      _showError(context, auth.error!);
+      debugPrint('Splash Google sign-in failed: ${auth.error}');
+      _showError(context, 'Could not continue with Google. Please try again.');
       auth.clearError();
     }
   }
@@ -74,94 +73,139 @@ class _SplashScreenState extends State<SplashScreen>
           // ── Bottom panel (45%) ───────────────────────────────────────────
           Expanded(
             flex: 45,
-            child: FadeTransition(
-              opacity: _fadeAnim,
-              child: SlideTransition(
-                position: _slideAnim,
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(28, 20, 28, 32),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Heading
-                      RichText(
-                        text: const TextSpan(
-                          style: TextStyle(
-                            fontSize: 31,
-                            fontWeight: FontWeight.w800,
-                            color: AppTheme.textDark,
-                            letterSpacing: -0.7,
-                            height: 1.2,
-                          ),
+            child: SafeArea(
+              top: false,
+              child: FadeTransition(
+                opacity: _fadeAnim,
+                child: SlideTransition(
+                  position: _slideAnim,
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(28, 20, 28, 32),
+                    child: Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 520),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            TextSpan(text: 'Your Personal\nFood '),
-                            TextSpan(
-                              text: 'Sanctuary.',
-                              style: TextStyle(color: AppTheme.primaryGreen),
+                            // Heading
+                            RichText(
+                              text: const TextSpan(
+                                style: TextStyle(
+                                  fontSize: 31,
+                                  fontWeight: FontWeight.w800,
+                                  color: AppTheme.textDark,
+                                  letterSpacing: -0.7,
+                                  height: 1.2,
+                                ),
+                                children: [
+                                  TextSpan(text: 'Your Personal\nFood '),
+                                  TextSpan(
+                                    text: 'Sanctuary.',
+                                    style:
+                                        TextStyle(color: AppTheme.primaryGreen),
+                                  ),
+                                ],
+                              ),
                             ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 10),
+                            const SizedBox(height: 10),
 
-                      // Subtitle
-                      const Text(
-                        'AI-curated Davao local foods, personalized meal plans, and budget-smart choices.',
-                        style: TextStyle(
-                          color: AppTheme.textMid,
-                          fontSize: 13.5,
-                          height: 1.55,
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-
-                      // Continue with Google
-                      SizedBox(
-                        width: double.infinity,
-                        height: 54,
-                        child: ElevatedButton(
-                          onPressed: auth.loading
-                              ? null
-                              : () => _handleGoogle(context),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF2E6B45),
-                            foregroundColor: Colors.white,
-                            elevation: 0,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
+                            // Subtitle
+                            const Text(
+                              'AI-curated Davao local foods, personalized meal plans, and budget-smart choices.',
+                              style: TextStyle(
+                                color: AppTheme.textMid,
+                                fontSize: 13.5,
+                                height: 1.55,
+                              ),
                             ),
-                          ),
-                          child: auth.loading
-                              ? const SizedBox(
-                                  width: 20,
-                                  height: 20,
-                                  child: CircularProgressIndicator(
-                                      strokeWidth: 2, color: Colors.white),
-                                )
-                              : Row(
+                            const SizedBox(height: 24),
+
+                            // Continue with Google
+                            SizedBox(
+                              width: double.infinity,
+                              height: 54,
+                              child: ElevatedButton(
+                                onPressed: auth.loading
+                                    ? null
+                                    : () => _handleGoogle(context),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFF2E6B45),
+                                  foregroundColor: Colors.white,
+                                  elevation: 0,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(16),
+                                  ),
+                                ),
+                                child: auth.loading
+                                    ? const SizedBox(
+                                        width: 20,
+                                        height: 20,
+                                        child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            color: Colors.white),
+                                      )
+                                    : Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
+                                        children: [
+                                          Container(
+                                            width: 26,
+                                            height: 26,
+                                            decoration: const BoxDecoration(
+                                              color: Colors.white,
+                                              shape: BoxShape.circle,
+                                            ),
+                                            child: const Center(
+                                              child: Text(
+                                                'G',
+                                                style: TextStyle(
+                                                  color: Color(0xFF2E6B45),
+                                                  fontSize: 14,
+                                                  fontWeight: FontWeight.w900,
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 12),
+                                          const Text(
+                                            'Continue with Google',
+                                            style: TextStyle(
+                                              fontSize: 15,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+
+                            // Sign up with Email
+                            SizedBox(
+                              width: double.infinity,
+                              height: 54,
+                              child: OutlinedButton(
+                                onPressed: () => Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                        builder: (_) =>
+                                            const RegisterScreen())),
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: AppTheme.textDark,
+                                  side: const BorderSide(
+                                      color: AppTheme.divider, width: 1.5),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(16),
+                                  ),
+                                ),
+                                child: const Row(
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
-                                    Container(
-                                      width: 26,
-                                      height: 26,
-                                      decoration: const BoxDecoration(
-                                        color: Colors.white,
-                                        shape: BoxShape.circle,
-                                      ),
-                                      child: const Center(
-                                        child: Text(
-                                          'G',
-                                          style: TextStyle(
-                                            color: Color(0xFF2E6B45),
-                                            fontSize: 14,
-                                            fontWeight: FontWeight.w900,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 12),
-                                    const Text(
-                                      'Continue with Google',
+                                    Icon(Icons.email_outlined,
+                                        size: 20, color: AppTheme.primaryGreen),
+                                    SizedBox(width: 12),
+                                    Text(
+                                      'Sign up with Email',
                                       style: TextStyle(
                                         fontSize: 15,
                                         fontWeight: FontWeight.w600,
@@ -169,98 +213,69 @@ class _SplashScreenState extends State<SplashScreen>
                                     ),
                                   ],
                                 ),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-
-                      // Sign up with Email
-                      SizedBox(
-                        width: double.infinity,
-                        height: 54,
-                        child: OutlinedButton(
-                          onPressed: () => Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                  builder: (_) => const RegisterScreen())),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: AppTheme.textDark,
-                            side: const BorderSide(
-                                color: AppTheme.divider, width: 1.5),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                          ),
-                          child: const Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(Icons.email_outlined,
-                                  size: 20, color: AppTheme.primaryGreen),
-                              SizedBox(width: 12),
-                              Text(
-                                'Sign up with Email',
-                                style: TextStyle(
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w600,
-                                ),
                               ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-
-                      // OR divider
-                      const Row(children: [
-                        Expanded(child: Divider()),
-                        Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 14),
-                          child: Text(
-                            'OR',
-                            style: TextStyle(
-                              color: AppTheme.textLight,
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                              letterSpacing: 1.2,
                             ),
-                          ),
-                        ),
-                        Expanded(child: Divider()),
-                      ]),
-                      const SizedBox(height: 14),
+                            const SizedBox(height: 16),
 
-                      // Already have an account
-                      Center(
-                        child: TextButton(
-                          onPressed: () => Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                  builder: (_) => const LoginScreen())),
-                          style: TextButton.styleFrom(
-                            padding: EdgeInsets.zero,
-                            minimumSize: Size.zero,
-                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                          ),
-                          child: RichText(
-                            text: const TextSpan(
-                              style: TextStyle(
-                                  fontSize: 13.5, color: AppTheme.textMid),
-                              children: [
-                                TextSpan(text: 'Already have an account? '),
-                                TextSpan(
-                                  text: 'Sign in',
+                            // OR divider
+                            const Row(children: [
+                              Expanded(child: Divider()),
+                              Padding(
+                                padding: EdgeInsets.symmetric(horizontal: 14),
+                                child: Text(
+                                  'OR',
                                   style: TextStyle(
-                                    color: AppTheme.primaryGreen,
-                                    fontWeight: FontWeight.w700,
-                                    decoration: TextDecoration.underline,
-                                    decorationColor: AppTheme.primaryGreen,
+                                    color: AppTheme.textLight,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                    letterSpacing: 1.2,
                                   ),
                                 ),
-                              ],
+                              ),
+                              Expanded(child: Divider()),
+                            ]),
+                            const SizedBox(height: 14),
+
+                            // Already have an account
+                            Center(
+                              child: TextButton(
+                                onPressed: () => Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                        builder: (_) => const LoginScreen())),
+                                style: TextButton.styleFrom(
+                                  padding: EdgeInsets.zero,
+                                  minimumSize: Size.zero,
+                                  tapTargetSize:
+                                      MaterialTapTargetSize.shrinkWrap,
+                                ),
+                                child: RichText(
+                                  text: const TextSpan(
+                                    style: TextStyle(
+                                        fontSize: 13.5,
+                                        color: AppTheme.textMid),
+                                    children: [
+                                      TextSpan(
+                                          text: 'Already have an account? '),
+                                      TextSpan(
+                                        text: 'Sign in',
+                                        style: TextStyle(
+                                          color: AppTheme.primaryGreen,
+                                          fontWeight: FontWeight.w700,
+                                          decoration: TextDecoration.underline,
+                                          decorationColor:
+                                              AppTheme.primaryGreen,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
                             ),
-                          ),
+                          ],
                         ),
                       ),
-                    ],
+                    ),
                   ),
                 ),
               ),
@@ -397,7 +412,13 @@ class _LogoWidget extends StatelessWidget {
   Widget build(BuildContext context) {
     // The PNG logo asset is optional — use the icon composite as the
     // primary logo to avoid a 404 on web when the file is absent.
-    return const _IconLogo();
+    final compact = MediaQuery.sizeOf(context).width < 360;
+    return Image.asset(
+      'assets/images/food/logo/nutrimind_logo_transparent.png',
+      width: compact ? 142 : 168,
+      fit: BoxFit.contain,
+      errorBuilder: (context, error, stackTrace) => const _IconLogo(),
+    );
   }
 }
 

@@ -73,9 +73,14 @@ class _CommunityScreenState extends State<CommunityScreen>
           tabs: _tabs.map((t) => Tab(text: t)).toList(),
         ),
       ),
-      body: TabBarView(
-        controller: _tabController,
-        children: _tabs.map((tab) => _PostsFeed(category: tab)).toList(),
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 560),
+          child: TabBarView(
+            controller: _tabController,
+            children: _tabs.map((tab) => _PostsFeed(category: tab)).toList(),
+          ),
+        ),
       ),
     );
   }
@@ -89,6 +94,10 @@ class _PostsFeed extends StatelessWidget {
   Widget build(BuildContext context) {
     final community = context.watch<CommunityProvider>();
     final posts = community.posts;
+    final horizontalPadding =
+        MediaQuery.sizeOf(context).width < 360 ? 12.0 : 16.0;
+    final feedPadding =
+        EdgeInsets.fromLTRB(horizontalPadding, 8, horizontalPadding, 190);
 
     // Only flash a snackbar for transient errors while there is still content
     // to show. When the feed is empty, we render an on-screen error state
@@ -107,7 +116,7 @@ class _PostsFeed extends StatelessWidget {
 
     if (community.loading) {
       return ListView(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 190),
+        padding: feedPadding,
         children: const [
           _ComposerCard(),
           SizedBox(height: 40),
@@ -118,7 +127,7 @@ class _PostsFeed extends StatelessWidget {
 
     if (community.error != null && posts.isEmpty) {
       return ListView(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 190),
+        padding: feedPadding,
         children: [
           const _ComposerCard(),
           const SizedBox(height: 40),
@@ -132,7 +141,7 @@ class _PostsFeed extends StatelessWidget {
 
     if (posts.isEmpty) {
       return ListView(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 190),
+        padding: feedPadding,
         children: [
           const _ComposerCard(),
           const SizedBox(height: 40),
@@ -146,7 +155,7 @@ class _PostsFeed extends StatelessWidget {
     }
 
     return ListView.separated(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 190),
+      padding: feedPadding,
       itemCount: posts.length + 1,
       separatorBuilder: (_, __) => const SizedBox(height: 14),
       itemBuilder: (_, i) {
@@ -231,14 +240,44 @@ class _ComposerCard extends StatelessWidget {
   }
 }
 
-class _PostCard extends StatelessWidget {
+class _PostCard extends StatefulWidget {
   final PostModel post;
   const _PostCard({required this.post});
 
   @override
+  State<_PostCard> createState() => _PostCardState();
+}
+
+class _PostCardState extends State<_PostCard> {
+  final FirestoreService _firestoreService = FirestoreService();
+
+  Stream<bool>? _likedStream;
+  String? _likedStreamPostId;
+  String? _likedStreamUid;
+
+  PostModel get post => widget.post;
+
+  Stream<bool> _likeStreamFor(String uid) {
+    final postId = post.id;
+    if (_likedStream != null &&
+        _likedStreamPostId == postId &&
+        _likedStreamUid == uid) {
+      return _likedStream!;
+    }
+
+    _likedStreamPostId = postId;
+    _likedStreamUid = uid;
+    _likedStream = uid.isEmpty || postId.isEmpty
+        ? Stream<bool>.value(false)
+        : _firestoreService.isPostLikedByStream(postId, uid);
+    return _likedStream!;
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final currentUser = context.read<AuthProvider>().userModel;
+    final currentUser = context.watch<AuthProvider>().userModel;
     final uid = currentUser?.uid ?? '';
+    final compact = MediaQuery.sizeOf(context).width < 360;
 
     return Material(
       color: ModernAppTheme.white,
@@ -250,12 +289,13 @@ class _PostCard extends StatelessWidget {
         onTap: () => Navigator.push(context,
             MaterialPageRoute(builder: (_) => PostDetailScreen(post: post))),
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: EdgeInsets.all(compact ? 12 : 16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Header
               Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   GestureDetector(
                     onTap: () => _openAuthorProfile(context),
@@ -278,18 +318,29 @@ class _PostCard extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Row(
+                          Text(
+                            post.userName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 13,
+                                color: AppTheme.textDark),
+                          ),
+                          Wrap(
+                            spacing: 4,
+                            runSpacing: 2,
+                            crossAxisAlignment: WrapCrossAlignment.center,
                             children: [
-                              Text(post.userName,
+                              Text(post.timeAgo,
                                   style: const TextStyle(
-                                      fontWeight: FontWeight.w700,
-                                      fontSize: 13,
-                                      color: AppTheme.textDark)),
+                                      fontSize: 11, color: AppTheme.textLight)),
                               if (post.location.isNotEmpty) ...[
-                                const SizedBox(width: 4),
                                 const Icon(Icons.location_on,
                                     size: 11, color: AppTheme.textLight),
-                                Flexible(
+                                ConstrainedBox(
+                                  constraints: BoxConstraints(
+                                      maxWidth: compact ? 120 : 180),
                                   child: Text(post.location,
                                       style: const TextStyle(
                                           fontSize: 11,
@@ -299,52 +350,41 @@ class _PostCard extends StatelessWidget {
                               ],
                             ],
                           ),
-                          Text(post.timeAgo,
-                              style: const TextStyle(
-                                  fontSize: 11, color: AppTheme.textLight)),
                         ],
                       ),
                     ),
                   ),
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                        color: AppTheme.softGreen,
-                        borderRadius: BorderRadius.circular(6)),
-                    child: Text(post.category,
-                        style: const TextStyle(
-                            fontSize: 10,
-                            color: AppTheme.primaryGreen,
-                            fontWeight: FontWeight.w600)),
-                  ),
-                  if (post.isUnderReview) ...[
-                    const SizedBox(width: 6),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: AppTheme.orangeAccent.withValues(alpha: 0.14),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: const Text(
-                        'Under review',
-                        style: TextStyle(
-                          fontSize: 10,
-                          color: AppTheme.orangeAccent,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ),
-                  ],
                   if (uid.isNotEmpty) ...[
-                    const SizedBox(width: 4),
+                    const SizedBox(width: 6),
                     GestureDetector(
                       onTap: () => _showOptions(context),
-                      child: const Icon(Icons.more_vert,
-                          size: 18, color: AppTheme.textLight),
+                      child: const Padding(
+                        padding: EdgeInsets.all(4),
+                        child: Icon(Icons.more_vert,
+                            size: 18, color: AppTheme.textLight),
+                      ),
                     ),
                   ],
+                ],
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  _postBadge(
+                    post.category,
+                    backgroundColor: AppTheme.softGreen,
+                    textColor: AppTheme.primaryGreen,
+                  ),
+                  if (post.isUnderReview)
+                    _postBadge(
+                      'Under review',
+                      backgroundColor:
+                          AppTheme.orangeAccent.withValues(alpha: 0.14),
+                      textColor: AppTheme.orangeAccent,
+                      fontWeight: FontWeight.w700,
+                    ),
                 ],
               ),
               const SizedBox(height: 10),
@@ -395,64 +435,119 @@ class _PostCard extends StatelessWidget {
               const SizedBox(height: 12),
 
               // Action row
-              Row(
-                children: [
-                  StreamBuilder<bool>(
-                    stream: uid.isEmpty
-                        ? Stream.value(false)
-                        : FirestoreService()
-                            .isPostLikedByStream(post.id, uid),
-                    builder: (context, snapshot) {
-                      final isLiked = snapshot.data ?? false;
-                      return GestureDetector(
-                        onTap: uid.isEmpty
-                            ? null
-                            : () => context
-                                .read<CommunityProvider>()
-                                .toggleLike(post, currentUser),
-                        child: Row(
-                          children: [
-                            Icon(
-                              isLiked
-                                  ? Icons.favorite
-                                  : Icons.favorite_border,
-                              size: 18,
-                              color:
-                                  isLiked ? Colors.red : AppTheme.textMid,
-                            ),
-                            const SizedBox(width: 4),
-                            Text('${post.likeCount}',
-                                style: TextStyle(
-                                    fontSize: 12,
-                                    color: isLiked
-                                        ? Colors.red
-                                        : AppTheme.textMid,
-                                    fontWeight: isLiked
-                                        ? FontWeight.w700
-                                        : FontWeight.w400)),
-                          ],
-                        ),
-                      );
-                    },
-                  ),
-                  const SizedBox(width: 18),
-                  Row(
-                    children: [
-                      const Icon(Icons.chat_bubble_outline,
-                          size: 18, color: AppTheme.textMid),
-                      const SizedBox(width: 4),
-                      Text('${post.commentCount}',
-                          style: const TextStyle(
-                              fontSize: 12, color: AppTheme.textMid)),
-                    ],
-                  ),
-                  const Spacer(),
-                  const Icon(Icons.share_outlined,
-                      size: 18, color: AppTheme.textMid),
-                ],
-              ),
+              _buildActionRow(context, uid, currentUser, compact),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _postBadge(
+    String label, {
+    required Color backgroundColor,
+    required Color textColor,
+    FontWeight fontWeight = FontWeight.w600,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 10,
+          color: textColor,
+          fontWeight: fontWeight,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildActionRow(
+    BuildContext context,
+    String uid,
+    dynamic currentUser,
+    bool compact,
+  ) {
+    final likeAction = StreamBuilder<bool>(
+      stream: _likeStreamFor(uid),
+      builder: (context, snapshot) {
+        final isLiked = snapshot.data ?? false;
+        return _actionButton(
+          icon: isLiked ? Icons.favorite : Icons.favorite_border,
+          label: '${post.likeCount}',
+          color: isLiked ? Colors.red : AppTheme.textMid,
+          fontWeight: isLiked ? FontWeight.w700 : FontWeight.w400,
+          onTap: uid.isEmpty
+              ? null
+              : () => context
+                  .read<CommunityProvider>()
+                  .toggleLike(post, currentUser),
+        );
+      },
+    );
+    final commentAction = _actionButton(
+      icon: Icons.chat_bubble_outline,
+      label: '${post.commentCount}',
+      color: AppTheme.textMid,
+    );
+    final shareAction = _actionButton(
+      icon: Icons.share_outlined,
+      label: '',
+      color: AppTheme.textMid,
+    );
+
+    if (compact) {
+      return Wrap(
+        spacing: 12,
+        runSpacing: 6,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [likeAction, commentAction, shareAction],
+      );
+    }
+
+    return Row(
+      children: [
+        likeAction,
+        const SizedBox(width: 12),
+        commentAction,
+        const Spacer(),
+        shareAction,
+      ],
+    );
+  }
+
+  Widget _actionButton({
+    required IconData icon,
+    required String label,
+    required Color color,
+    FontWeight fontWeight = FontWeight.w400,
+    VoidCallback? onTap,
+  }) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 18, color: color),
+            if (label.isNotEmpty) ...[
+              const SizedBox(width: 4),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: color,
+                  fontWeight: fontWeight,
+                ),
+              ),
+            ],
+          ],
         ),
       ),
     );
@@ -514,14 +609,12 @@ class _PostCard extends StatelessWidget {
                             try {
                               await context
                                   .read<CommunityProvider>()
-                                  .deletePost(
-                                      post.id, currentUser?.uid ?? '');
+                                  .deletePost(post.id, currentUser?.uid ?? '');
                             } catch (_) {
                               if (!context.mounted) return;
                               ScaffoldMessenger.of(context)
                                   .showSnackBar(const SnackBar(
-                                content:
-                                    Text('Could not delete post.'),
+                                content: Text('Could not delete post.'),
                                 backgroundColor: AppTheme.errorRed,
                                 behavior: SnackBarBehavior.floating,
                               ));

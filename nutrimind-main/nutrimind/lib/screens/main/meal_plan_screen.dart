@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
@@ -25,6 +27,8 @@ class MealPlanScreen extends StatefulWidget {
   State<MealPlanScreen> createState() => _MealPlanScreenState();
 }
 
+enum _MealLogAction { recipes, palengke }
+
 class _MealSwapSheet extends StatelessWidget {
   const _MealSwapSheet({
     required this.meal,
@@ -38,79 +42,84 @@ class _MealSwapSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final maxHeight = MediaQuery.sizeOf(context).height * 0.86;
+
     return SafeArea(
-      child: Container(
-        margin: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: AppTheme.white,
-          borderRadius: BorderRadius.circular(24),
-          boxShadow: ModernAppTheme.shadowXl,
-        ),
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(18, 18, 18, 22),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  const Expanded(
-                    child: Text(
-                      'Swap Meal',
-                      style: TextStyle(
-                        color: AppTheme.textDark,
-                        fontSize: 18,
-                        fontWeight: FontWeight.w800,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxHeight: maxHeight),
+        child: Container(
+          margin: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: AppTheme.white,
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: ModernAppTheme.shadowXl,
+          ),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(18, 18, 18, 22),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Expanded(
+                      child: Text(
+                        'Swap Meal',
+                        style: TextStyle(
+                          color: AppTheme.textDark,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                        ),
                       ),
                     ),
-                  ),
-                  IconButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    icon: const Icon(Icons.close, color: AppTheme.textMid),
-                  ),
-                ],
-              ),
-              Text(
-                'Replace ${meal.name} with an alternative from the existing Meal Planner dataset.',
-                style: const TextStyle(
-                  color: AppTheme.textMid,
-                  fontSize: 13,
-                  height: 1.4,
+                    IconButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      icon: const Icon(Icons.close, color: AppTheme.textMid),
+                    ),
+                  ],
                 ),
-              ),
-              const SizedBox(height: 12),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: AppTheme.orangeAccent.withValues(alpha: 0.10),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(
-                    color: AppTheme.orangeAccent.withValues(alpha: 0.28),
+                Text(
+                  'Replace ${meal.name} with an alternative from the existing Meal Planner dataset.',
+                  style: const TextStyle(
+                    color: AppTheme.textMid,
+                    fontSize: 13,
+                    height: 1.4,
                   ),
                 ),
-                child: const Text(
-                  'Note: local prices and macros are estimates, not live market prices.',
-                  style: TextStyle(
-                    color: AppTheme.orangeAccent,
-                    fontSize: 12,
-                    height: 1.35,
-                    fontWeight: FontWeight.w700,
+                const SizedBox(height: 12),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppTheme.orangeAccent.withValues(alpha: 0.10),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: AppTheme.orangeAccent.withValues(alpha: 0.28),
+                    ),
+                  ),
+                  child: const Text(
+                    'Note: local prices and macros are estimates, not live market prices.',
+                    style: TextStyle(
+                      color: AppTheme.orangeAccent,
+                      fontSize: 12,
+                      height: 1.35,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(height: 14),
-              ...options.map(
-                (option) => Padding(
-                  padding: const EdgeInsets.only(bottom: 10),
-                  child: _MealSwapOptionCard(
-                    option: option,
-                    onChoose:
-                        option.isAvailable ? () => onChoose(option) : null,
+                const SizedBox(height: 14),
+                ...options.map(
+                  (option) => Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: _MealSwapOptionCard(
+                      option: option,
+                      onChoose:
+                          option.isAvailable ? () => onChoose(option) : null,
+                    ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -296,19 +305,51 @@ class _MealPlanScreenState extends State<MealPlanScreen> {
   @override
   void initState() {
     super.initState();
-    final now = DateTime.now();
-    _weekStart = now.subtract(Duration(days: now.weekday - 1));
-    _weekDays = List.generate(7, (i) => _weekStart.add(Duration(days: i)));
+    final now = _dateOnly(DateTime.now());
+    _setDisplayedWeekFor(now);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final uid = context.read<AuthProvider>().userModel?.uid ?? '';
+      if (uid.isEmpty) return;
+      unawaited(context.read<MealProvider>().selectDate(uid, now));
+    });
   }
 
   Future<void> _selectDay(DateTime day) async {
+    final selectedDay = _dateOnly(day);
+    if (!_isInDisplayedWeek(selectedDay)) {
+      setState(() => _setDisplayedWeekFor(selectedDay));
+    }
     final uid = context.read<AuthProvider>().userModel?.uid ?? '';
     try {
-      await context.read<MealProvider>().selectDate(uid, day);
+      await context.read<MealProvider>().selectDate(uid, selectedDay);
     } catch (_) {
       // MealProvider exposes the user-facing error snackbar from build().
     }
   }
+
+  Future<void> _moveWeek(int weekDelta) async {
+    final selected = _dateOnly(context.read<MealProvider>().selectedDate);
+    final targetWeekStart = _weekStart.add(Duration(days: weekDelta * 7));
+    final targetDay = targetWeekStart.add(Duration(days: selected.weekday - 1));
+    setState(() => _setDisplayedWeekFor(targetDay));
+    await _selectDay(targetDay);
+  }
+
+  void _setDisplayedWeekFor(DateTime date) {
+    final day = _dateOnly(date);
+    _weekStart = day.subtract(Duration(days: day.weekday - 1));
+    _weekDays = List.generate(7, (i) => _weekStart.add(Duration(days: i)));
+  }
+
+  bool _isInDisplayedWeek(DateTime day) {
+    final normalized = _dateOnly(day);
+    final weekEnd = _weekStart.add(const Duration(days: 7));
+    return !normalized.isBefore(_weekStart) && normalized.isBefore(weekEnd);
+  }
+
+  DateTime _dateOnly(DateTime value) =>
+      DateTime(value.year, value.month, value.day);
 
   Future<void> _handleLogTap(MealModel meal) async {
     final choice = await _showLogChoiceSheet();
@@ -319,9 +360,9 @@ class _MealPlanScreenState extends State<MealPlanScreen> {
       );
       return;
     }
-    final confirmed = await _confirmManualLog(meal);
-    if (!mounted || !confirmed) return;
-    await _logMeal(meal.id);
+    final calories = await _confirmManualLog(meal);
+    if (!mounted || calories == null) return;
+    await _logMeal(meal.id, calories: calories);
   }
 
   Future<_LogChoice?> _showLogChoiceSheet() {
@@ -353,8 +394,7 @@ class _MealPlanScreenState extends State<MealPlanScreen> {
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton.icon(
-                  onPressed: () =>
-                      Navigator.pop(sheetCtx, _LogChoice.scan),
+                  onPressed: () => Navigator.pop(sheetCtx, _LogChoice.scan),
                   icon: const Icon(Icons.qr_code_scanner_rounded),
                   label: const Text('Scan this meal'),
                   style: ElevatedButton.styleFrom(
@@ -366,8 +406,7 @@ class _MealPlanScreenState extends State<MealPlanScreen> {
               SizedBox(
                 width: double.infinity,
                 child: OutlinedButton.icon(
-                  onPressed: () =>
-                      Navigator.pop(sheetCtx, _LogChoice.manual),
+                  onPressed: () => Navigator.pop(sheetCtx, _LogChoice.manual),
                   icon: const Icon(Icons.edit_outlined,
                       color: AppTheme.primaryGreen),
                   label: const Text(
@@ -397,70 +436,92 @@ class _MealPlanScreenState extends State<MealPlanScreen> {
     );
   }
 
-  Future<bool> _confirmManualLog(MealModel meal) async {
-    final result = await showDialog<bool>(
+  Future<int?> _confirmManualLog(MealModel meal) async {
+    final controller = TextEditingController(
+      text: meal.calories > 0 ? meal.calories.toString() : '',
+    );
+    String? errorText;
+    final result = await showDialog<int>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text(
-          'Confirm Manual Log',
-          style: TextStyle(fontWeight: FontWeight.w800),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              meal.name,
-              style: const TextStyle(
-                color: AppTheme.textDark,
-                fontWeight: FontWeight.w700,
-                fontSize: 15,
+      builder: (ctx) => StatefulBuilder(
+        builder: (dialogCtx, setDialogState) => AlertDialog(
+          insetPadding:
+              const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: const Text(
+            'Manual Log',
+            style: TextStyle(fontWeight: FontWeight.w800),
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  meal.name,
+                  style: const TextStyle(
+                    color: AppTheme.textDark,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 15,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  '${meal.calories} kcal',
+                  style: const TextStyle(color: AppTheme.textMid, fontSize: 13),
+                ),
+                if (meal.price > 0) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    '₱${meal.price.toStringAsFixed(0)}',
+                    style:
+                        const TextStyle(color: AppTheme.textMid, fontSize: 13),
+                  ),
+                ],
+                const SizedBox(height: 14),
+                TextField(
+                  controller: controller,
+                  keyboardType: TextInputType.number,
+                  decoration: InputDecoration(
+                    labelText: 'Calories',
+                    suffixText: 'kcal',
+                    errorText: errorText,
+                    border: const OutlineInputBorder(),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text(
+                'Cancel',
+                style: TextStyle(color: AppTheme.textMid),
               ),
             ),
-            const SizedBox(height: 8),
-            Text(
-              '${meal.calories} kcal',
-              style: const TextStyle(color: AppTheme.textMid, fontSize: 13),
-            ),
-            if (meal.price > 0) ...[
-              const SizedBox(height: 4),
-              Text(
-                '₱${meal.price.toStringAsFixed(0)}',
-                style: const TextStyle(
-                    color: AppTheme.textMid, fontSize: 13),
-              ),
-            ],
-            const SizedBox(height: 12),
-            const Text(
-              'Log this meal to your day?',
-              style: TextStyle(
-                color: AppTheme.textMid,
-                fontSize: 13,
-                height: 1.4,
-              ),
+            ElevatedButton(
+              onPressed: () {
+                final calories = int.tryParse(controller.text.trim());
+                if (calories == null || calories <= 0) {
+                  setDialogState(
+                      () => errorText = 'Enter calories greater than 0.');
+                  return;
+                }
+                Navigator.pop(dialogCtx, calories);
+              },
+              child: const Text('Log Meal'),
             ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text(
-              'Cancel',
-              style: TextStyle(color: AppTheme.textMid),
-            ),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Confirm Log'),
-          ),
-        ],
       ),
     );
-    return result ?? false;
+    controller.dispose();
+    return result;
   }
 
-  Future<void> _logMeal(String mealId) async {
+  Future<void> _logMeal(String mealId, {int? calories}) async {
     final user = context.read<AuthProvider>().userModel;
     final uid = user?.uid ?? '';
     if (uid.isEmpty || mealId.isEmpty) {
@@ -480,6 +541,7 @@ class _MealPlanScreenState extends State<MealPlanScreen> {
       displayName: user?.name ?? '',
       photoUrl: user?.photoUrl,
       dailyBudget: user?.dailyBudget ?? 150,
+      calories: calories,
     );
     if (!mounted) return;
     if (mealProvider.error != null) {
@@ -491,12 +553,18 @@ class _MealPlanScreenState extends State<MealPlanScreen> {
       mealProvider.clearError();
       return;
     }
-    await context.read<NotificationProvider>().createBudgetWarningIfNeeded(
-          uid: uid,
-          meals: mealProvider.meals,
-          dailyBudget: user?.dailyBudget ?? 150,
-          date: mealProvider.selectedDate,
-        );
+    _runOptionalMealSideEffect(
+      operation: 'MealLog.notificationCreation.budgetWarning',
+      context:
+          'uid=$uid mealId=$mealId selectedDate=${mealProvider.selectedDate.toIso8601String()}',
+      action: () =>
+          context.read<NotificationProvider>().createBudgetWarningIfNeeded(
+                uid: uid,
+                meals: mealProvider.meals,
+                dailyBudget: user?.dailyBudget ?? 150,
+                date: mealProvider.selectedDate,
+              ),
+    );
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
         content: Text('Meal logged successfully!'),
@@ -504,6 +572,29 @@ class _MealPlanScreenState extends State<MealPlanScreen> {
         behavior: SnackBarBehavior.floating,
       ));
     }
+  }
+
+  void _runOptionalMealSideEffect({
+    required String operation,
+    required String context,
+    required Future<void> Function() action,
+  }) {
+    debugPrint('[MealOptional] operation=$operation context="$context" start');
+    unawaited(
+      action().timeout(const Duration(seconds: 8)).then((_) {
+        debugPrint(
+          '[MealOptional] operation=$operation context="$context" success',
+        );
+      }).catchError((Object e, StackTrace st) {
+        debugPrint(
+          '[MealOptional] operation=$operation context="$context" failed error=$e',
+        );
+        debugPrintStack(
+          label: '[MealOptional] operation=$operation stack',
+          stackTrace: st,
+        );
+      }),
+    );
   }
 
   Future<void> _deleteMeal(String mealId) async {
@@ -628,9 +719,26 @@ class _MealPlanScreenState extends State<MealPlanScreen> {
     }
   }
 
-  void _openAiMealPlanner() {
-    Navigator.of(context).push(
+  Future<void> _openAiMealPlanner() async {
+    final selectedDate = context.read<MealProvider>().selectedDate;
+    final saved = await Navigator.of(context).push<bool>(
       MaterialPageRoute(builder: (_) => const AiMealPlannerScreen()),
+    );
+    if (!mounted || saved != true) return;
+    final uid = context.read<AuthProvider>().userModel?.uid ?? '';
+    if (uid.isEmpty) return;
+    await context.read<MealProvider>().selectDate(uid, selectedDate);
+  }
+
+  void _openRecipeLibrary() {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const RecipeBrowserScreen()),
+    );
+  }
+
+  void _openPalengkeList() {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const WeeklyPalengkeListScreen()),
     );
   }
 
@@ -663,20 +771,6 @@ class _MealPlanScreenState extends State<MealPlanScreen> {
           NutribotAppBarAction(
             nutribotContext: _buildNutribotContext(mealProv),
           ),
-          IconButton(
-            tooltip: 'Browse Recipes',
-            icon: const Icon(Icons.menu_book_outlined),
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const RecipeBrowserScreen()),
-            ),
-          ),
-          IconButton(
-            tooltip: 'AI Meal Planner',
-            icon: const Icon(Icons.psychology_outlined),
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const AiMealPlannerScreen()),
-            ),
-          ),
           if (mealProv.loading)
             const Padding(
               padding: EdgeInsets.only(right: 16),
@@ -699,9 +793,39 @@ class _MealPlanScreenState extends State<MealPlanScreen> {
                       fontSize: 13,
                       fontWeight: FontWeight.w600)),
             ),
+          PopupMenuButton<_MealLogAction>(
+            tooltip: 'More options',
+            onSelected: (action) {
+              switch (action) {
+                case _MealLogAction.recipes:
+                  _openRecipeLibrary();
+                case _MealLogAction.palengke:
+                  _openPalengkeList();
+              }
+            },
+            itemBuilder: (context) => const [
+              PopupMenuItem(
+                value: _MealLogAction.recipes,
+                child: ListTile(
+                  leading: Icon(Icons.menu_book_outlined),
+                  title: Text('Browse recipes'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+              PopupMenuItem(
+                value: _MealLogAction.palengke,
+                child: ListTile(
+                  leading: Icon(Icons.shopping_basket_outlined),
+                  title: Text('View palengke list'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+            ],
+          ),
         ],
       ),
-      body: Column(
+      body: ListView(
+        padding: const EdgeInsets.only(bottom: 24),
         children: [
           // Week header
           Container(
@@ -715,87 +839,14 @@ class _MealPlanScreenState extends State<MealPlanScreen> {
             ),
             child: Column(
               children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'Week of ${DateFormat('MMM d').format(_weekStart)}',
-                      style: const TextStyle(
-                          fontSize: 12,
-                          color: AppTheme.textMid,
-                          fontWeight: FontWeight.w600),
-                    ),
-                    Text(
-                      DateFormat('MMMM yyyy').format(selected),
-                      style: const TextStyle(
-                          fontSize: 12, color: AppTheme.textMid),
-                    ),
-                  ],
-                ),
+                _buildWeekNavigator(selected),
                 const SizedBox(height: 12),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: _weekDays.map((day) {
-                    final isSel = DateFormat('yyyy-MM-dd').format(day) ==
-                        DateFormat('yyyy-MM-dd').format(selected);
-                    final isToday = DateFormat('yyyy-MM-dd').format(day) ==
-                        DateFormat('yyyy-MM-dd').format(DateTime.now());
-                    return GestureDetector(
-                      onTap: () => _selectDay(day),
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 200),
-                        width: 40,
-                        height: 60,
-                        decoration: BoxDecoration(
-                          color: isSel
-                              ? ModernAppTheme.primaryGreen
-                              : ModernAppTheme.backgroundNeutral,
-                          borderRadius: BorderRadius.circular(14),
-                          border: Border.all(
-                            color: isSel
-                                ? AppTheme.primaryGreen
-                                : isToday
-                                    ? AppTheme.accentGreen
-                                    : AppTheme.divider,
-                            width: isToday && !isSel ? 1.5 : 1,
-                          ),
-                        ),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text(
-                              DateFormat('E').format(day)[0],
-                              style: TextStyle(
-                                fontSize: 10,
-                                color:
-                                    isSel ? Colors.white70 : AppTheme.textMid,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              '${day.day}',
-                              style: TextStyle(
-                                fontSize: 16,
-                                color: isSel ? Colors.white : AppTheme.textDark,
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  }).toList(),
-                ),
+                _buildDayStrip(selected),
                 const SizedBox(height: 14),
                 SizedBox(
                   width: double.infinity,
                   child: OutlinedButton.icon(
-                    onPressed: () => Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => const RecipeBrowserScreen(),
-                      ),
-                    ),
+                    onPressed: _openRecipeLibrary,
                     icon: const Icon(Icons.menu_book_outlined, size: 18),
                     label: const Text('Browse Recipe Library'),
                     style: OutlinedButton.styleFrom(
@@ -807,11 +858,7 @@ class _MealPlanScreenState extends State<MealPlanScreen> {
                 SizedBox(
                   width: double.infinity,
                   child: OutlinedButton.icon(
-                    onPressed: () => Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => const WeeklyPalengkeListScreen(),
-                      ),
-                    ),
+                    onPressed: _openPalengkeList,
                     icon: const Icon(Icons.shopping_basket_outlined, size: 18),
                     label: const Text('View Palengke List'),
                     style: OutlinedButton.styleFrom(
@@ -841,40 +888,38 @@ class _MealPlanScreenState extends State<MealPlanScreen> {
                 border: Border.all(color: AppTheme.divider),
                 boxShadow: ModernAppTheme.shadowSm,
               ),
-              child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                // Always show logged stats if any meals are logged
-                if (mealProv.loggedCount > 0) ...[
-                  _summStat('${mealProv.totalCalories}', 'kcal eaten',
-                      AppTheme.primaryGreen),
-                  _divLine(),
-                  _summStat('₱${mealProv.totalSpent.toStringAsFixed(0)}',
-                      'spent', AppTheme.orangeAccent),
-                  _divLine(),
-                  _summStat('${mealProv.loggedCount}', 'logged',
-                      AppTheme.lightGreen),
+              child: Wrap(
+                alignment: WrapAlignment.spaceAround,
+                runAlignment: WrapAlignment.center,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: 16,
+                runSpacing: 10,
+                children: [
+                  // Always show logged stats if any meals are logged
+                  if (mealProv.loggedCount > 0) ...[
+                    _summStat('${mealProv.totalCalories}', 'kcal eaten',
+                        AppTheme.primaryGreen),
+                    _summStat('PHP ${mealProv.totalSpent.toStringAsFixed(0)}',
+                        'spent', AppTheme.orangeAccent),
+                    _summStat('${mealProv.loggedCount}', 'logged',
+                        AppTheme.lightGreen),
+                  ],
+                  // Show planned stats if any planned meals exist
+                  if (mealProv.plannedCount > 0) ...[
+                    _summStat('${mealProv.plannedCalories}', 'kcal planned',
+                        AppTheme.primaryGreen),
+                    _summStat('${mealProv.plannedCount}', 'planned',
+                        AppTheme.lightGreen),
+                  ],
+                  // Fallback when everything is logged (no planned)
+                  if (mealProv.plannedCount == 0 && mealProv.loggedCount == 0)
+                    _summStat('0', 'meals', AppTheme.textLight),
                 ],
-                // Show planned stats if any planned meals exist
-                if (mealProv.plannedCount > 0) ...[
-                  if (mealProv.loggedCount > 0) _divLine(),
-                  _summStat('${mealProv.plannedCalories}', 'kcal planned',
-                      AppTheme.primaryGreen),
-                  _divLine(),
-                  _summStat('${mealProv.plannedCount}', 'planned',
-                      AppTheme.lightGreen),
-                ],
-                // Fallback when everything is logged (no planned)
-                if (mealProv.plannedCount == 0 && mealProv.loggedCount == 0)
-                  _summStat('0', 'meals', AppTheme.textLight),
-              ],
-            ),
+              ),
             ),
 
           // Meals list
-          Expanded(
-            child: _buildMealsBody(mealProv, orderedMeals),
-          ),
+          _buildMealsBody(mealProv, orderedMeals),
         ],
       ),
     );
@@ -932,41 +977,209 @@ class _MealPlanScreenState extends State<MealPlanScreen> {
 
   Widget _summStat(String value, String label, Color color) {
     return Column(
+      mainAxisSize: MainAxisSize.min,
       children: [
-        Text(value,
-            style: TextStyle(
-                fontWeight: FontWeight.w800, fontSize: 15, color: color)),
-        Text(label,
-            style: const TextStyle(
-                fontSize: 10,
-                color: AppTheme.textMid,
-                fontWeight: FontWeight.w500)),
+        Text(
+          value,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontWeight: FontWeight.w800,
+            fontSize: 15,
+            color: color,
+          ),
+        ),
+        Text(
+          label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          textAlign: TextAlign.center,
+          style: const TextStyle(
+            fontSize: 10,
+            color: AppTheme.textMid,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
       ],
     );
   }
 
-  Widget _divLine() => Container(width: 1, height: 28, color: AppTheme.divider);
+  Widget _buildWeekNavigator(DateTime selected) {
+    return Row(
+      children: [
+        _weekArrow(
+          icon: Icons.chevron_left_rounded,
+          tooltip: 'Previous week',
+          onTap: () => _moveWeek(-1),
+        ),
+        Expanded(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Week of ${DateFormat('MMM d').format(_weekStart)}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: AppTheme.textMid,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                'Selected ${DateFormat('MMM d, yyyy').format(selected)}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: AppTheme.textDark,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ),
+        ),
+        _weekArrow(
+          icon: Icons.chevron_right_rounded,
+          tooltip: 'Next week',
+          onTap: () => _moveWeek(1),
+        ),
+      ],
+    );
+  }
+
+  Widget _weekArrow({
+    required IconData icon,
+    required String tooltip,
+    required VoidCallback onTap,
+  }) {
+    return IconButton.filledTonal(
+      tooltip: tooltip,
+      onPressed: onTap,
+      icon: Icon(icon, size: 22),
+      style: IconButton.styleFrom(
+        foregroundColor: AppTheme.primaryGreen,
+        backgroundColor: AppTheme.softGreen,
+        minimumSize: const Size(40, 40),
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      ),
+    );
+  }
+
+  Widget _buildDayStrip(DateTime selected) {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: _weekDays.asMap().entries.map((entry) {
+          final day = entry.value;
+          return Padding(
+            padding: EdgeInsets.only(
+              right: entry.key == _weekDays.length - 1 ? 0 : 8,
+            ),
+            child: _buildDayChip(day: day, selected: selected),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  Widget _buildDayChip({
+    required DateTime day,
+    required DateTime selected,
+  }) {
+    final isSelected = _dateOnly(day) == _dateOnly(selected);
+    final isToday = _dateOnly(day) == _dateOnly(DateTime.now());
+    final label = DateFormat('EEE').format(day);
+
+    return Semantics(
+      button: true,
+      selected: isSelected,
+      label: DateFormat('EEEE, MMMM d').format(day),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(14),
+        child: InkWell(
+          onTap: () => _selectDay(day),
+          borderRadius: BorderRadius.circular(14),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            width: 52,
+            height: 64,
+            decoration: BoxDecoration(
+              color: isSelected
+                  ? ModernAppTheme.primaryGreen
+                  : ModernAppTheme.backgroundNeutral,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: isSelected
+                    ? AppTheme.primaryGreen
+                    : isToday
+                        ? AppTheme.accentGreen
+                        : AppTheme.divider,
+                width: isToday && !isSelected ? 1.5 : 1,
+              ),
+            ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: isSelected ? Colors.white70 : AppTheme.textMid,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  '${day.day}',
+                  style: TextStyle(
+                    fontSize: 17,
+                    color: isSelected ? Colors.white : AppTheme.textDark,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 
   Widget _buildMealsBody(MealProvider mealProv, List<MealModel> orderedMeals) {
     // Loading = provider is loading AND we have no cached meals.
     if (mealProv.loading && mealProv.meals.isEmpty) {
-      return const LoadingStateView(message: 'Loading your meal log...');
+      return const SizedBox(
+        height: 320,
+        child: LoadingStateView(message: 'Loading your meal log...'),
+      );
     }
     // On-screen error with retry — snackbar still fires for transient errors
     // but this gives a stable recovery path when the stream fails outright.
     if (mealProv.error != null && mealProv.meals.isEmpty) {
-      return ErrorStateView(
-        message: mealProv.error,
-        onRetry: () {
-          final uid = context.read<AuthProvider>().userModel?.uid ?? '';
-          if (uid.isEmpty) return;
-          mealProv.clearError();
-          mealProv.listenToMeals(uid);
-        },
+      return SizedBox(
+        height: 320,
+        child: ErrorStateView(
+          message: mealProv.error,
+          onRetry: () {
+            final uid = context.read<AuthProvider>().userModel?.uid ?? '';
+            if (uid.isEmpty) return;
+            mealProv.clearError();
+            mealProv.listenToMeals(uid);
+          },
+        ),
       );
     }
     if (orderedMeals.isEmpty) {
-      return _buildEmptyState();
+      return SizedBox(
+          height: 320, child: _buildEmptyState(mealProv.selectedDate));
     }
 
     // Status pill: show planned/logged split when both exist on this day.
@@ -992,7 +1205,7 @@ class _MealPlanScreenState extends State<MealPlanScreen> {
                         color: AppTheme.accentGreen.withValues(alpha: 0.5)),
                   ),
                   child: Text(
-                    '$plannedCount planned · $loggedCount logged',
+                    '$plannedCount planned | $loggedCount logged',
                     style: const TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w700,
@@ -1003,23 +1216,23 @@ class _MealPlanScreenState extends State<MealPlanScreen> {
               ],
             ),
           ),
-        Expanded(
-          child: ListView.separated(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
-            itemCount: orderedMeals.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 12),
-            itemBuilder: (_, i) => _buildMealCard(orderedMeals[i]),
-          ),
+        ListView.separated(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+          itemCount: orderedMeals.length,
+          separatorBuilder: (_, __) => const SizedBox(height: 12),
+          itemBuilder: (_, i) => _buildMealCard(orderedMeals[i]),
         ),
       ],
     );
   }
 
-  Widget _buildEmptyState() {
+  Widget _buildEmptyState(DateTime selectedDate) {
     return EmptyStateView(
       icon: Icons.restaurant_menu_outlined,
-      title: 'No meals for this day',
-      message: 'Open AI Planner to create and save a plan.',
+      title: 'No meals for ${DateFormat('MMM d').format(selectedDate)}',
+      message: 'Create a plan for this date or choose another day to preview.',
       actionLabel: 'Open AI Planner',
       onAction: _openAiMealPlanner,
     );
@@ -1070,17 +1283,17 @@ class _MealPlanScreenState extends State<MealPlanScreen> {
               },
               child: Padding(
                 padding: const EdgeInsets.all(16),
-                child: Row(
-                  children: [
-                    Stack(
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final image = Stack(
                       children: [
                         SafeFoodImage(
-                                imageUrl: meal.imageUrl,
-                                mealName: meal.name,
-                                width: 64,
-                                height: 64,
-                                borderRadius: BorderRadius.circular(12),
-                              ),
+                          imageUrl: meal.imageUrl,
+                          mealName: meal.name,
+                          width: 64,
+                          height: 64,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                         if (isLogged)
                           Positioned(
                             right: 0,
@@ -1089,93 +1302,157 @@ class _MealPlanScreenState extends State<MealPlanScreen> {
                               width: 20,
                               height: 20,
                               decoration: const BoxDecoration(
-                                  color: AppTheme.primaryGreen,
-                                  shape: BoxShape.circle),
-                              child: const Icon(Icons.check,
-                                  color: Colors.white, size: 12),
+                                color: AppTheme.primaryGreen,
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(
+                                Icons.check,
+                                color: Colors.white,
+                                size: 12,
+                              ),
                             ),
                           ),
                       ],
-                    ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              _chip(meal.typeLabel, AppTheme.softGreen,
-                                  AppTheme.primaryGreen),
-                              const SizedBox(width: 6),
-                              if (isLogged)
-                                _chip('Logged ✓', AppTheme.softGreen,
-                                    AppTheme.primaryGreen)
-                              else
-                                _chip(
-                                  '📋 Planned',
-                                  AppTheme.warning.withValues(alpha: 0.18),
-                                  AppTheme.warning,
-                                ),
-                            ],
-                          ),
-                          const SizedBox(height: 6),
-                          Text(
-                            meal.name,
-                            style: TextStyle(
-                                fontWeight: FontWeight.w700,
-                                fontSize: 15,
-                                color: isLogged
-                                    ? AppTheme.textMid
-                                    : AppTheme.textDark,
-                                decoration: isLogged
-                                    ? TextDecoration.lineThrough
-                                    : null),
-                          ),
-                          const SizedBox(height: 4),
-                          Row(
-                            children: [
-                              Text('₱${meal.price.toStringAsFixed(0)}',
-                                  style: const TextStyle(
-                                      fontWeight: FontWeight.w700,
-                                      fontSize: 13,
-                                      color: AppTheme.primaryGreen)),
-                              const SizedBox(width: 8),
-                              _dot(),
-                              const SizedBox(width: 8),
-                              Text('${meal.calories} kcal',
-                                  style: const TextStyle(
-                                      fontSize: 12, color: AppTheme.textMid)),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                    Column(
-                      children: [
-                        if (!isLogged)
-                          _mealActionButton(
-                            label: 'Log',
-                            icon: Icons.check_rounded,
-                            filled: true,
-                            onTap: () => _handleLogTap(meal),
-                          ),
-                        if (!isLogged) const SizedBox(height: 8),
-                        _mealActionButton(
-                          label: 'Swap',
-                          icon: Icons.swap_horiz_rounded,
-                          onTap: () => _openSwapSheet(meal),
-                        ),
-                        const SizedBox(height: 8),
-                        Icon(
+                    );
+
+                    Widget details() => Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Wrap(
+                              spacing: 6,
+                              runSpacing: 4,
+                              children: [
+                                _chip(meal.typeLabel, AppTheme.softGreen,
+                                    AppTheme.primaryGreen),
+                                if (isLogged)
+                                  _chip('Logged', AppTheme.softGreen,
+                                      AppTheme.primaryGreen)
+                                else
+                                  _chip(
+                                    'Planned',
+                                    AppTheme.warning.withValues(alpha: 0.18),
+                                    AppTheme.warning,
+                                  ),
+                              ],
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              meal.name,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 15,
+                                  color: isLogged
+                                      ? AppTheme.textMid
+                                      : AppTheme.textDark,
+                                  decoration: isLogged
+                                      ? TextDecoration.lineThrough
+                                      : null),
+                            ),
+                            const SizedBox(height: 4),
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 3,
+                              crossAxisAlignment: WrapCrossAlignment.center,
+                              children: [
+                                Text('PHP ${meal.price.toStringAsFixed(0)}',
+                                    style: const TextStyle(
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 13,
+                                        color: AppTheme.primaryGreen)),
+                                _dot(),
+                                Text('${meal.calories} kcal',
+                                    style: const TextStyle(
+                                        fontSize: 12, color: AppTheme.textMid)),
+                              ],
+                            ),
+                          ],
+                        );
+
+                    Widget expandIcon() => Icon(
                           isExpanded
                               ? Icons.keyboard_arrow_up
                               : Icons.keyboard_arrow_down,
                           color: AppTheme.textLight,
                           size: 20,
+                        );
+
+                    if (constraints.maxWidth < 320) {
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              image,
+                              const SizedBox(width: 12),
+                              Expanded(child: details()),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          Row(
+                            children: [
+                              if (!isLogged) ...[
+                                Expanded(
+                                  child: _mealActionButton(
+                                    label: 'Log',
+                                    icon: Icons.check_rounded,
+                                    filled: true,
+                                    fullWidth: true,
+                                    onTap: () => _handleLogTap(meal),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                              ],
+                              Expanded(
+                                child: _mealActionButton(
+                                  label: 'Swap',
+                                  icon: Icons.swap_horiz_rounded,
+                                  fullWidth: true,
+                                  onTap: () => _openSwapSheet(meal),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              expandIcon(),
+                            ],
+                          ),
+                        ],
+                      );
+                    }
+
+                    return Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        image,
+                        const SizedBox(width: 14),
+                        Expanded(child: details()),
+                        SizedBox(
+                          width: 78,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              if (!isLogged)
+                                _mealActionButton(
+                                  label: 'Log',
+                                  icon: Icons.check_rounded,
+                                  filled: true,
+                                  onTap: () => _handleLogTap(meal),
+                                ),
+                              if (!isLogged) const SizedBox(height: 8),
+                              _mealActionButton(
+                                label: 'Swap',
+                                icon: Icons.swap_horiz_rounded,
+                                onTap: () => _openSwapSheet(meal),
+                              ),
+                              const SizedBox(height: 8),
+                              expandIcon(),
+                            ],
+                          ),
                         ),
                       ],
-                    ),
-                  ],
+                    );
+                  },
                 ),
               ),
             ),
@@ -1238,14 +1515,14 @@ class _MealPlanScreenState extends State<MealPlanScreen> {
 
                     // Macros row
                     if (meal.protein > 0 || meal.carbs > 0 || meal.fat > 0) ...[
-                      Row(
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
                         children: [
                           _macroChip(
                               '${meal.protein}g', 'Protein', AppTheme.infoBlue),
-                          const SizedBox(width: 8),
                           _macroChip(
                               '${meal.carbs}g', 'Carbs', AppTheme.orangeAccent),
-                          const SizedBox(width: 8),
                           _macroChip('${meal.fat}g', 'Fat', AppTheme.errorRed),
                         ],
                       ),
@@ -1307,20 +1584,23 @@ class _MealPlanScreenState extends State<MealPlanScreen> {
     required IconData icon,
     required VoidCallback onTap,
     bool filled = false,
+    bool fullWidth = false,
   }) {
     final foreground = filled ? Colors.white : AppTheme.primaryGreen;
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(10),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+        width: fullWidth ? double.infinity : null,
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
         decoration: BoxDecoration(
           color: filled ? AppTheme.primaryGreen : AppTheme.softGreen,
           borderRadius: BorderRadius.circular(10),
           border: filled ? null : Border.all(color: AppTheme.accentGreen),
         ),
         child: Row(
-          mainAxisSize: MainAxisSize.min,
+          mainAxisSize: fullWidth ? MainAxisSize.max : MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(icon, size: 14, color: foreground),
             const SizedBox(width: 4),
@@ -1354,7 +1634,6 @@ class _MealPlanScreenState extends State<MealPlanScreen> {
       height: 3,
       decoration: const BoxDecoration(
           color: AppTheme.textLight, shape: BoxShape.circle));
-
 }
 
 enum _LogChoice { scan, manual }

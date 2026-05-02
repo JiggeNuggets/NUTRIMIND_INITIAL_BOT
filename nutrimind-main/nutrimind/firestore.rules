@@ -1,0 +1,284 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isSelf(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    function hasOnlyKeys(keys) {
+      return request.resource.data.keys().hasOnly(keys);
+    }
+
+    function changedKeysAreOnly(keys) {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys);
+    }
+
+    function validUserCreate(uid) {
+      return isSelf(uid)
+          && request.resource.data.uid == uid
+          && request.resource.data.role == 'user'
+          && request.resource.data.isPremium == false
+          && request.resource.data.createdAt is timestamp
+          && request.resource.data.updatedAt is timestamp
+          && hasOnlyKeys([
+            'uid',
+            'name',
+            'email',
+            'role',
+            'photoUrl',
+            'location',
+            'goal',
+            'gender',
+            'height',
+            'weight',
+            'age',
+            'bmi',
+            'bmiCategory',
+            'dailyBudget',
+            'allowNonLocal',
+            'budgetBuffer',
+            'profileCompleted',
+            'budgetConfigured',
+            'isPremium',
+            'createdAt',
+            'updatedAt'
+          ]);
+    }
+
+    function validUserUpdate(uid) {
+      return isSelf(uid)
+          && request.resource.data.uid == resource.data.uid
+          && request.resource.data.email == resource.data.email
+          && request.resource.data.role == resource.data.role
+          && request.resource.data.isPremium == resource.data.isPremium
+          && request.resource.data.createdAt == resource.data.createdAt
+          && changedKeysAreOnly([
+            'name',
+            'photoUrl',
+            'location',
+            'goal',
+            'gender',
+            'height',
+            'weight',
+            'age',
+            'bmi',
+            'bmiCategory',
+            'dailyBudget',
+            'allowNonLocal',
+            'budgetBuffer',
+            'profileCompleted',
+            'budgetConfigured',
+            'updatedAt'
+          ]);
+    }
+
+    function validNotificationCreate(targetUid) {
+      return signedIn()
+          && request.resource.data.id is string
+          && request.resource.data.category is string
+          && request.resource.data.type is string
+          && request.resource.data.title is string
+          && request.resource.data.message is string
+          && request.resource.data.isRead == false
+          && request.resource.data.createdAt is timestamp
+          && hasOnlyKeys([
+            'id',
+            'category',
+            'type',
+            'fromUserId',
+            'fromUserName',
+            'fromUserPhotoUrl',
+            'postId',
+            'mealId',
+            'title',
+            'message',
+            'isRead',
+            'createdAt'
+          ])
+          && (
+            (isSelf(targetUid) && (
+              request.resource.data.fromUserId == null
+              || request.resource.data.fromUserId == request.auth.uid
+            ))
+            || (!isSelf(targetUid)
+              && request.resource.data.fromUserId == request.auth.uid)
+          );
+    }
+
+    function validPostCreate() {
+      return signedIn()
+          && request.resource.data.userId == request.auth.uid
+          && request.resource.data.likeCount == 0
+          && request.resource.data.commentCount == 0
+          && request.resource.data.reportCount == 0
+          && request.resource.data.moderationStatus == 'active'
+          && request.resource.data.isHiddenByModeration == false
+          && request.resource.data.createdAt is timestamp
+          && hasOnlyKeys([
+            'id',
+            'userId',
+            'userName',
+            'userPhotoUrl',
+            'location',
+            'content',
+            'category',
+            'likes',
+            'likeCount',
+            'commentCount',
+            'imageUrl',
+            'createdAt',
+            'tags',
+            'reportCount',
+            'moderationStatus',
+            'isHiddenByModeration'
+          ]);
+    }
+
+    function validPostAggregateUpdate() {
+      return signedIn()
+          && request.resource.data.id == resource.data.id
+          && request.resource.data.userId == resource.data.userId
+          && request.resource.data.userName == resource.data.userName
+          && request.resource.data.userPhotoUrl == resource.data.userPhotoUrl
+          && request.resource.data.location == resource.data.location
+          && request.resource.data.content == resource.data.content
+          && request.resource.data.category == resource.data.category
+          && request.resource.data.imageUrl == resource.data.imageUrl
+          && request.resource.data.createdAt == resource.data.createdAt
+          && request.resource.data.tags == resource.data.tags
+          && changedKeysAreOnly([
+            'likes',
+            'likeCount',
+            'commentCount',
+            'reportCount',
+            'moderationStatus',
+            'isHiddenByModeration'
+          ])
+          && request.resource.data.likeCount is int
+          && request.resource.data.likeCount >= 0
+          && request.resource.data.commentCount is int
+          && request.resource.data.commentCount >= resource.data.commentCount
+          && request.resource.data.reportCount is int
+          && request.resource.data.reportCount >= resource.data.reportCount
+          && request.resource.data.moderationStatus in ['active', 'underReview', 'hidden']
+          && request.resource.data.isHiddenByModeration is bool;
+    }
+
+    match /users/{uid} {
+      allow read: if signedIn();
+      allow create: if validUserCreate(uid);
+      allow update: if validUserUpdate(uid);
+      allow delete: if false;
+
+      match /meals/{mealId} {
+        allow read, write: if isSelf(uid);
+      }
+
+      match /pantry_items/{itemId} {
+        allow read, write: if isSelf(uid);
+      }
+
+      match /scanned_items/{scanId} {
+        allow read, write: if isSelf(uid);
+      }
+
+      match /weekly_palengke_lists/{weekId} {
+        allow read, write: if isSelf(uid);
+
+        match /items/{itemId} {
+          allow read, write: if isSelf(uid);
+        }
+      }
+
+      match /notifications/{notificationId} {
+        allow read, delete: if isSelf(uid);
+        allow create: if validNotificationCreate(uid);
+        allow update: if isSelf(uid)
+            && changedKeysAreOnly(['isRead'])
+            && request.resource.data.isRead is bool;
+      }
+
+      match /followers/{followerUid} {
+        allow read: if signedIn();
+        allow create: if signedIn()
+            && request.auth.uid == followerUid
+            && uid != followerUid;
+        allow delete: if signedIn()
+            && request.auth.uid == followerUid;
+        allow update: if false;
+      }
+
+      match /following/{targetUid} {
+        allow read: if signedIn();
+        allow create: if isSelf(uid)
+            && targetUid != uid;
+        allow delete: if isSelf(uid);
+        allow update: if false;
+      }
+
+      match /weeklyStats/{weekId} {
+        allow read: if signedIn();
+        allow write: if isSelf(uid);
+      }
+
+      match /badges/{badgeId} {
+        allow read, write: if isSelf(uid);
+      }
+    }
+
+    match /posts/{postId} {
+      allow read: if signedIn();
+      allow create: if validPostCreate();
+      allow update: if validPostAggregateUpdate();
+      allow delete: if signedIn() && resource.data.userId == request.auth.uid;
+
+      match /comments/{commentId} {
+        allow read: if signedIn();
+        allow create: if signedIn()
+            && request.resource.data.userId == request.auth.uid
+            && request.resource.data.postId == postId;
+        allow delete: if signedIn()
+            && resource.data.userId == request.auth.uid;
+        allow update: if false;
+      }
+
+      match /likes/{uid} {
+        allow read: if signedIn();
+        allow create: if isSelf(uid)
+            && request.resource.data.uid == request.auth.uid;
+        allow delete: if isSelf(uid);
+        allow update: if false;
+      }
+
+      match /reports/{reportId} {
+        allow create: if signedIn()
+            && request.resource.data.reporterId == request.auth.uid
+            && request.resource.data.postId == postId;
+        allow read: if signedIn()
+            && (
+              resource.data.reporterId == request.auth.uid
+              || resource.data.postOwnerId == request.auth.uid
+            );
+        allow update, delete: if false;
+      }
+    }
+
+    match /local_foods/{foodId} {
+      allow read: if signedIn();
+      allow write: if false;
+    }
+
+    match /market_prices/{priceId} {
+      allow read: if signedIn();
+      allow write: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

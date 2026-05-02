@@ -449,6 +449,7 @@ class MealPlannerFoodData {
       servingSize: '1 bowl',
       healthNote: 'Energy-dense; keep sugar modest for daily plans.',
       category: 'porridge',
+      imageUrl: 'assets/images/food/champorado.jpg',
     ),
     LocalMealPlannerFood(
       id: 'oatmeal_with_banana',
@@ -547,6 +548,7 @@ class MealPlannerFoodData {
       servingSize: '1 bowl',
       healthNote: 'Warm protein porridge suited to affordable meal plans.',
       category: 'porridge',
+      imageUrl: 'assets/images/food/arroz_caldo.jpg',
     ),
     LocalMealPlannerFood(
       id: 'pandesal_with_peanut_butter',
@@ -603,6 +605,7 @@ class MealPlannerFoodData {
       servingSize: '1 rice meal',
       healthNote: 'Common carinderia meal with strong protein value.',
       category: 'rice_meal',
+      imageUrl: 'assets/images/food/chicken_adobo.jpg',
     ),
     LocalMealPlannerFood(
       id: 'pork_adobo',
@@ -631,6 +634,7 @@ class MealPlannerFoodData {
       servingSize: '1 bowl with rice',
       healthNote: 'Uses vegetables commonly sold in Davao public markets.',
       category: 'soup',
+      imageUrl: 'assets/images/food/tinola_manok.jpg',
     ),
     LocalMealPlannerFood(
       id: 'monggo_with_malunggay',
@@ -645,6 +649,7 @@ class MealPlannerFoodData {
       servingSize: '1 bowl with rice',
       healthNote: 'Budget-friendly plant protein and fiber source.',
       category: 'legume',
+      imageUrl: 'assets/images/food/monggo_soup.jpg',
     ),
     LocalMealPlannerFood(
       id: 'grilled_fish',
@@ -659,6 +664,7 @@ class MealPlannerFoodData {
       servingSize: '1 serving',
       healthNote: 'Lean protein option often found near local markets.',
       category: 'fish',
+      imageUrl: 'assets/images/food/grilled_fish.jpg',
     ),
     LocalMealPlannerFood(
       id: 'fried_fish',
@@ -715,6 +721,7 @@ class MealPlannerFoodData {
       servingSize: '1 omelette',
       healthNote: 'Affordable eggplant and egg meal for carinderia budgets.',
       category: 'egg',
+      imageUrl: 'assets/images/food/tortang_talong.jpg',
     ),
     LocalMealPlannerFood(
       id: 'chicken_with_rice',
@@ -771,6 +778,7 @@ class MealPlannerFoodData {
       servingSize: '1 bowl with rice',
       healthNote: 'Vegetable-forward Filipino meal; watch salty condiments.',
       category: 'vegetable',
+      imageUrl: 'assets/images/food/pinakbet.jpg',
     ),
     LocalMealPlannerFood(
       id: 'sinigang_na_bangus',
@@ -785,6 +793,7 @@ class MealPlannerFoodData {
       servingSize: '1 bowl with rice',
       healthNote: 'Protein-rich fish soup with vegetables.',
       category: 'soup',
+      imageUrl: 'assets/images/food/bangus_sinigang.jpg',
     ),
     LocalMealPlannerFood(
       id: 'grilled_chicken',
@@ -842,6 +851,7 @@ class MealPlannerFoodData {
       healthNote:
           'Same local staple as tortang talong with simple ingredients.',
       category: 'egg',
+      imageUrl: 'assets/images/food/tortang_talong.jpg',
     ),
     LocalMealPlannerFood(
       id: 'malunggay_soup',
@@ -1375,6 +1385,7 @@ class MealPlannerFoodData {
       servingSize: '1 cup',
       healthNote: 'Refreshing snack using fruits common in Davao.',
       category: 'fruit',
+      imageUrl: 'assets/images/food/smoothie_bowl.jpg',
     ),
     LocalMealPlannerFood(
       id: 'pandesal_snack',

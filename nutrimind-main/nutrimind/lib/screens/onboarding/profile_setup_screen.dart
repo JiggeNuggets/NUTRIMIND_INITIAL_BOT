@@ -13,6 +13,8 @@ class ProfileSetupScreen extends StatefulWidget {
 }
 
 class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
+  static const Duration _saveTimeout = Duration(seconds: 10);
+
   static const List<Map<String, dynamic>> _goals = [
     {
       'id': 'nutrition',
@@ -70,21 +72,27 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
   Future<void> _save() async {
     setState(() => _saving = true);
     try {
-      await context.read<AuthProvider>().updateProfileSetup(
+      await context
+          .read<AuthProvider>()
+          .updateProfileSetup(
             goal: _goal,
             gender: _gender,
             height: _height,
             weight: _weight,
             age: _age,
             dailyBudget: _dailyBudget,
-          );
+          )
+          .timeout(_saveTimeout);
       if (!mounted) return;
       // AuthGate will react and route to MainShell.
       Navigator.of(context).popUntil((route) => route.isFirst);
-    } catch (e) {
+    } catch (e, st) {
+      debugPrint('Profile setup save failed: $e\n$st');
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('Could not save profile: $e'),
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text(
+          'Could not save your profile. Please check your connection and try again.',
+        ),
         backgroundColor: AppTheme.errorRed,
         behavior: SnackBarBehavior.floating,
       ));
@@ -95,6 +103,10 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final media = MediaQuery.of(context);
+    final compact = media.size.height < 720 || media.size.width < 360;
+    final horizontalPadding = compact ? 20.0 : 24.0;
+
     return Scaffold(
       backgroundColor: ModernAppTheme.backgroundNeutral,
       appBar: AppBar(
@@ -119,138 +131,118 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
       ),
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(24, 8, 24, 32),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Set up your profile',
-                style: TextStyle(
-                  fontSize: 26,
-                  fontWeight: FontWeight.w800,
-                  color: AppTheme.textDark,
-                  letterSpacing: -0.5,
-                ),
-              ),
-              const SizedBox(height: 6),
-              const Text(
-                'NutriMind needs your goal, biometrics, and daily budget to plan Davao-friendly meals.',
-                style: TextStyle(
-                  color: AppTheme.textMid,
-                  fontSize: 14,
-                  height: 1.5,
-                ),
-              ),
-              const SizedBox(height: 24),
-              _sectionLabel('Your goal'),
-              const SizedBox(height: 10),
-              ..._goals.map(_buildGoalCard),
-              const SizedBox(height: 12),
-              _bmiCard(),
-              const SizedBox(height: 24),
-              _sectionLabel('Gender'),
-              const SizedBox(height: 10),
-              Row(
-                children: ['Male', 'Female', 'Other'].map((g) {
-                  final sel = _gender == g;
-                  return Expanded(
-                    child: GestureDetector(
-                      onTap: () => setState(() => _gender = g),
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 150),
-                        margin: const EdgeInsets.only(right: 8),
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        decoration: BoxDecoration(
-                          color: sel ? AppTheme.primaryGreen : AppTheme.white,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: sel
-                                ? AppTheme.primaryGreen
-                                : AppTheme.divider,
-                          ),
-                        ),
-                        child: Text(
-                          g,
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            color: sel ? Colors.white : AppTheme.textDark,
-                            fontWeight: FontWeight.w600,
-                            fontSize: 13,
-                          ),
-                        ),
-                      ),
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+          padding: EdgeInsets.fromLTRB(
+            horizontalPadding,
+            8,
+            horizontalPadding,
+            32 + media.viewInsets.bottom,
+          ),
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 560),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Set up your profile',
+                    style: TextStyle(
+                      fontSize: 26,
+                      fontWeight: FontWeight.w800,
+                      color: AppTheme.textDark,
+                      letterSpacing: -0.5,
                     ),
-                  );
-                }).toList(),
+                  ),
+                  const SizedBox(height: 6),
+                  const Text(
+                    'NutriMind needs your goal, biometrics, and daily budget to plan Davao-friendly meals.',
+                    style: TextStyle(
+                      color: AppTheme.textMid,
+                      fontSize: 14,
+                      height: 1.5,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  _sectionLabel('Your goal'),
+                  const SizedBox(height: 10),
+                  ..._goals.map(_buildGoalCard),
+                  const SizedBox(height: 12),
+                  _bmiCard(),
+                  const SizedBox(height: 24),
+                  _sectionLabel('Gender'),
+                  const SizedBox(height: 10),
+                  _buildGenderSelector(),
+                  const SizedBox(height: 22),
+                  _slider(
+                    label: 'Height',
+                    value: _height,
+                    min: 140,
+                    max: 210,
+                    unit: 'cm',
+                    divisions: 140,
+                    onChanged: (v) => setState(() => _height = v),
+                  ),
+                  const SizedBox(height: 18),
+                  _slider(
+                    label: 'Weight',
+                    value: _weight,
+                    min: 30,
+                    max: 150,
+                    unit: 'kg',
+                    divisions: 240,
+                    onChanged: (v) => setState(() => _weight = v),
+                  ),
+                  const SizedBox(height: 18),
+                  _slider(
+                    label: 'Age',
+                    value: _age.toDouble(),
+                    min: 10,
+                    max: 80,
+                    unit: 'yrs',
+                    divisions: 70,
+                    onChanged: (v) => setState(() => _age = v.round()),
+                  ),
+                  const SizedBox(height: 22),
+                  _sectionLabel('Daily food budget (PHP)'),
+                  const SizedBox(height: 10),
+                  _slider(
+                    label: 'Budget',
+                    value: _dailyBudget,
+                    min: 50,
+                    max: 1000,
+                    unit: 'PHP',
+                    divisions: 95,
+                    onChanged: (v) =>
+                        setState(() => _dailyBudget = v.roundToDouble()),
+                  ),
+                  const Text(
+                    'You can change this any time from Profile.',
+                    style: TextStyle(
+                      color: AppTheme.textLight,
+                      fontSize: 11,
+                    ),
+                  ),
+                  const SizedBox(height: 32),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 52,
+                    child: ElevatedButton(
+                      onPressed: _saving ? null : _save,
+                      child: _saving
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Text('Save & Get Started →'),
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(height: 22),
-              _slider(
-                label: 'Height',
-                value: _height,
-                min: 140,
-                max: 210,
-                unit: 'cm',
-                divisions: 140,
-                onChanged: (v) => setState(() => _height = v),
-              ),
-              const SizedBox(height: 18),
-              _slider(
-                label: 'Weight',
-                value: _weight,
-                min: 30,
-                max: 150,
-                unit: 'kg',
-                divisions: 240,
-                onChanged: (v) => setState(() => _weight = v),
-              ),
-              const SizedBox(height: 18),
-              _slider(
-                label: 'Age',
-                value: _age.toDouble(),
-                min: 10,
-                max: 80,
-                unit: 'yrs',
-                divisions: 70,
-                onChanged: (v) => setState(() => _age = v.round()),
-              ),
-              const SizedBox(height: 22),
-              _sectionLabel('Daily food budget (PHP)'),
-              const SizedBox(height: 10),
-              _slider(
-                label: 'Budget',
-                value: _dailyBudget,
-                min: 50,
-                max: 1000,
-                unit: 'PHP',
-                divisions: 95,
-                onChanged: (v) => setState(() => _dailyBudget = v.roundToDouble()),
-              ),
-              const Text(
-                'You can change this any time from Profile.',
-                style: TextStyle(
-                  color: AppTheme.textLight,
-                  fontSize: 11,
-                ),
-              ),
-              const SizedBox(height: 32),
-              SizedBox(
-                width: double.infinity,
-                height: 52,
-                child: ElevatedButton(
-                  onPressed: _saving ? null : _save,
-                  child: _saving
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
-                          ),
-                        )
-                      : const Text('Save & Get Started →'),
-                ),
-              ),
-            ],
+            ),
           ),
         ),
       ),
@@ -313,15 +305,59 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
               ),
             ),
             Icon(
-              isSelected
-                  ? Icons.check_circle
-                  : Icons.radio_button_unchecked,
+              isSelected ? Icons.check_circle : Icons.radio_button_unchecked,
               color: isSelected ? AppTheme.primaryGreen : AppTheme.textLight,
               size: 22,
             ),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildGenderSelector() {
+    const genders = ['Male', 'Female', 'Other'];
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        const spacing = 8.0;
+        final columns = constraints.maxWidth < 300 ? 1 : 3;
+        final itemWidth =
+            (constraints.maxWidth - spacing * (columns - 1)) / columns;
+
+        return Wrap(
+          spacing: spacing,
+          runSpacing: spacing,
+          children: genders.map((g) {
+            final sel = _gender == g;
+            return SizedBox(
+              width: itemWidth,
+              child: GestureDetector(
+                onTap: () => setState(() => _gender = g),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 150),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  decoration: BoxDecoration(
+                    color: sel ? AppTheme.primaryGreen : AppTheme.white,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: sel ? AppTheme.primaryGreen : AppTheme.divider,
+                    ),
+                  ),
+                  child: Text(
+                    g,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: sel ? Colors.white : AppTheme.textDark,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 13,
+                    ),
+                  ),
+                ),
+              ),
+            );
+          }).toList(),
+        );
+      },
     );
   }
 
@@ -437,9 +473,9 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            _sectionLabel(label),
+            Expanded(child: _sectionLabel(label)),
+            const SizedBox(width: 12),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
               decoration: BoxDecoration(

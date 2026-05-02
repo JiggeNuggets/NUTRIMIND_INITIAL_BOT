@@ -46,3 +46,4 @@ flutter:
     - assets/data/recipes_nutrition_sample.json
     - assets/images/
     - assets/images/food/
+    - assets/images/food/logo/nutrimind_logo_transparent.png

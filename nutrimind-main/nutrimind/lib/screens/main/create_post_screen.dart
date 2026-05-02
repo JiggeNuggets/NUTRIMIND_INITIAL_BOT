@@ -62,39 +62,43 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
   void _showImageSourceSheet() {
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (sheetCtx) => Container(
-        margin: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: AppTheme.white,
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const SizedBox(height: 12),
-            ListTile(
-              leading: const Icon(Icons.camera_alt_outlined,
-                  color: AppTheme.primaryGreen),
-              title: const Text('Camera',
-                  style: TextStyle(fontWeight: FontWeight.w600)),
-              onTap: () => _pickPostImage(ImageSource.camera),
-            ),
-            const Divider(height: 1, indent: 16, endIndent: 16),
-            ListTile(
-              leading: const Icon(Icons.photo_library_outlined,
-                  color: AppTheme.primaryGreen),
-              title: const Text('Photo Library',
-                  style: TextStyle(fontWeight: FontWeight.w600)),
-              onTap: () => _pickPostImage(ImageSource.gallery),
-            ),
-            ListTile(
-              leading: const Icon(Icons.close, color: AppTheme.textMid),
-              title: const Text('Cancel'),
-              onTap: () => Navigator.pop(sheetCtx),
-            ),
-            const SizedBox(height: 8),
-          ],
+      builder: (sheetCtx) => SafeArea(
+        top: false,
+        child: Container(
+          margin: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: AppTheme.white,
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 12),
+              ListTile(
+                leading: const Icon(Icons.camera_alt_outlined,
+                    color: AppTheme.primaryGreen),
+                title: const Text('Camera',
+                    style: TextStyle(fontWeight: FontWeight.w600)),
+                onTap: () => _pickPostImage(ImageSource.camera),
+              ),
+              const Divider(height: 1, indent: 16, endIndent: 16),
+              ListTile(
+                leading: const Icon(Icons.photo_library_outlined,
+                    color: AppTheme.primaryGreen),
+                title: const Text('Photo Library',
+                    style: TextStyle(fontWeight: FontWeight.w600)),
+                onTap: () => _pickPostImage(ImageSource.gallery),
+              ),
+              ListTile(
+                leading: const Icon(Icons.close, color: AppTheme.textMid),
+                title: const Text('Cancel'),
+                onTap: () => Navigator.pop(sheetCtx),
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
         ),
       ),
     );
@@ -245,6 +249,10 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final media = MediaQuery.of(context);
+    final compact = media.size.width < 360;
+    final horizontalPadding = compact ? 16.0 : 24.0;
+
     return Scaffold(
       backgroundColor: AppTheme.white,
       appBar: AppBar(
@@ -258,26 +266,35 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
             nutribotContext: _buildNutribotContext(),
           ),
           Padding(
-            padding: const EdgeInsets.only(right: 16),
-            child: ElevatedButton(
-              onPressed: _submitting ? null : _publish,
-              style: ElevatedButton.styleFrom(
-                minimumSize: const Size(90, 38),
-                padding: const EdgeInsets.symmetric(horizontal: 16),
+            padding: EdgeInsets.only(right: compact ? 8 : 16),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(maxWidth: compact ? 106 : 140),
+              child: ElevatedButton(
+                onPressed: _submitting ? null : _publish,
+                style: ElevatedButton.styleFrom(
+                  minimumSize: const Size(84, 38),
+                  padding: EdgeInsets.symmetric(horizontal: compact ? 10 : 16),
+                ),
+                child: _submitting
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: Colors.white))
+                    : const FittedBox(child: Text('Publish Post')),
               ),
-              child: _submitting
-                  ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(
-                          strokeWidth: 2, color: Colors.white))
-                  : const Text('Publish Post'),
             ),
           ),
         ],
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+        padding: EdgeInsets.fromLTRB(
+          horizontalPadding,
+          24,
+          horizontalPadding,
+          24 + media.viewInsets.bottom,
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -292,7 +309,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                 'Share fresh finds, tips, and local food discoveries with the community.',
                 style: TextStyle(
                     color: AppTheme.textMid, fontSize: 13, height: 1.5)),
-            const SizedBox(height: 28),
+            SizedBox(height: compact ? 22 : 28),
 
             // Category selector
             const Text('Category',
@@ -325,7 +342,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                 );
               }).toList(),
             ),
-            const SizedBox(height: 24),
+            SizedBox(height: compact ? 20 : 24),
 
             // Photo section
             const Text('Photo',
@@ -335,7 +352,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                     color: AppTheme.textDark)),
             const SizedBox(height: 10),
             _buildImagePicker(),
-            const SizedBox(height: 20),
+            SizedBox(height: compact ? 16 : 20),
 
             // Post content
             const Text('Post Content',
@@ -352,7 +369,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                 alignLabelWithHint: true,
               ),
             ),
-            const SizedBox(height: 20),
+            SizedBox(height: compact ? 16 : 20),
 
             // Tags
             const Text('Tags',
@@ -396,16 +413,20 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
               }).toList(),
             ),
 
-            const SizedBox(height: 36),
-            ElevatedButton(
-              onPressed: _submitting ? null : _publish,
-              child: _submitting
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(
-                          strokeWidth: 2, color: Colors.white))
-                  : const Text('Publish Post'),
+            SizedBox(height: compact ? 28 : 36),
+            SizedBox(
+              width: double.infinity,
+              height: 52,
+              child: ElevatedButton(
+                onPressed: _submitting ? null : _publish,
+                child: _submitting
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: Colors.white))
+                    : const Text('Publish Post'),
+              ),
             ),
           ],
         ),
@@ -414,90 +435,99 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
   }
 
   Widget _buildImagePicker() {
-    if (_imageBytes != null) {
-      return Stack(
-        children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(16),
-            child: Image.memory(
-              _imageBytes!,
-              height: 180,
-              width: double.infinity,
-              fit: BoxFit.cover,
-            ),
-          ),
-          Positioned(
-            top: 8,
-            right: 8,
-            child: GestureDetector(
-              onTap: () => setState(() {
-                _pickedImage = null;
-                _imageBytes = null;
-              }),
-              child: Container(
-                padding: const EdgeInsets.all(6),
-                decoration: const BoxDecoration(
-                    color: Colors.black54, shape: BoxShape.circle),
-                child: const Icon(Icons.close, color: Colors.white, size: 16),
-              ),
-            ),
-          ),
-          Positioned(
-            bottom: 8,
-            right: 8,
-            child: GestureDetector(
-              onTap: _showImageSourceSheet,
-              child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                decoration: BoxDecoration(
-                    color: Colors.black54,
-                    borderRadius: BorderRadius.circular(8)),
-                child: const Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.edit, color: Colors.white, size: 12),
-                    SizedBox(width: 4),
-                    Text('Change',
-                        style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600)),
-                  ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 330;
+        final emptyHeight = compact ? 108.0 : 120.0;
+        final imageHeight = compact ? 150.0 : 180.0;
+
+        if (_imageBytes != null) {
+          return Stack(
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: Image.memory(
+                  _imageBytes!,
+                  height: imageHeight,
+                  width: double.infinity,
+                  fit: BoxFit.cover,
                 ),
               ),
+              Positioned(
+                top: 8,
+                right: 8,
+                child: GestureDetector(
+                  onTap: () => setState(() {
+                    _pickedImage = null;
+                    _imageBytes = null;
+                  }),
+                  child: Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: const BoxDecoration(
+                        color: Colors.black54, shape: BoxShape.circle),
+                    child:
+                        const Icon(Icons.close, color: Colors.white, size: 16),
+                  ),
+                ),
+              ),
+              Positioned(
+                bottom: 8,
+                right: 8,
+                child: GestureDetector(
+                  onTap: _showImageSourceSheet,
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                        color: Colors.black54,
+                        borderRadius: BorderRadius.circular(8)),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.edit, color: Colors.white, size: 12),
+                        SizedBox(width: 4),
+                        Text('Change',
+                            style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600)),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          );
+        }
+
+        return GestureDetector(
+          onTap: _showImageSourceSheet,
+          child: Container(
+            height: emptyHeight,
+            width: double.infinity,
+            decoration: BoxDecoration(
+              color: AppTheme.bgGreen,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: AppTheme.divider),
+            ),
+            child: const Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.add_photo_alternate_outlined,
+                    color: AppTheme.primaryGreen, size: 32),
+                SizedBox(height: 8),
+                Text('Add Photo',
+                    style: TextStyle(
+                        color: AppTheme.primaryGreen,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14)),
+                Text('Tap to upload (optional)',
+                    style: TextStyle(color: AppTheme.textMid, fontSize: 12)),
+              ],
             ),
           ),
-        ],
-      );
-    }
-
-    return GestureDetector(
-      onTap: _showImageSourceSheet,
-      child: Container(
-        height: 120,
-        width: double.infinity,
-        decoration: BoxDecoration(
-          color: AppTheme.bgGreen,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppTheme.divider),
-        ),
-        child: const Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.add_photo_alternate_outlined,
-                color: AppTheme.primaryGreen, size: 32),
-            SizedBox(height: 8),
-            Text('Add Photo',
-                style: TextStyle(
-                    color: AppTheme.primaryGreen,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 14)),
-            Text('Tap to upload (optional)',
-                style: TextStyle(color: AppTheme.textMid, fontSize: 12)),
-          ],
-        ),
-      ),
+        );
+      },
     );
   }
 }

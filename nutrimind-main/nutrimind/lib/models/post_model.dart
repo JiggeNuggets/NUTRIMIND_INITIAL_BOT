@@ -71,26 +71,49 @@ class PostModel {
         'isHiddenByModeration': isHiddenByModeration,
       };
 
-  factory PostModel.fromMap(Map<String, dynamic> map) => PostModel(
-        id: map['id'] ?? '',
-        userId: map['userId'] ?? '',
-        userName: map['userName'] ?? '',
-        userPhotoUrl: map['userPhotoUrl'],
-        location: map['location'] ?? '',
-        content: map['content'] ?? '',
-        category: map['category'] ?? 'Trending',
-        likes: List<String>.from(map['likes'] ?? []),
-        likeCount: (map['likeCount'] ?? 0).toInt(), // New: aggregate field
-        commentCount: (map['commentCount'] ?? 0).toInt(),
-        imageUrl: map['imageUrl'],
-        createdAt: map['createdAt'] != null
-            ? (map['createdAt'] as Timestamp).toDate()
-            : DateTime.now(),
-        tags: List<String>.from(map['tags'] ?? []),
-        reportCount: (map['reportCount'] ?? 0).toInt(),
-        moderationStatus: map['moderationStatus'] ?? 'active',
-        isHiddenByModeration: map['isHiddenByModeration'] ?? false,
-      );
+  factory PostModel.fromMap(
+    Map<String, dynamic> map, {
+    String? documentId,
+  }) {
+    final storedId = map['id']?.toString().trim() ?? '';
+    return PostModel(
+      id: storedId.isEmpty ? (documentId ?? '') : storedId,
+      userId: map['userId']?.toString() ?? '',
+      userName: map['userName']?.toString() ?? '',
+      userPhotoUrl: map['userPhotoUrl']?.toString(),
+      location: map['location']?.toString() ?? '',
+      content: map['content']?.toString() ?? '',
+      category: map['category']?.toString() ?? 'Trending',
+      likes: _stringListOrEmpty(map['likes']),
+      likeCount: _intOrZero(map['likeCount']),
+      commentCount: _intOrZero(map['commentCount']),
+      imageUrl: map['imageUrl']?.toString(),
+      createdAt: _dateTimeOrNow(map['createdAt']),
+      tags: _stringListOrEmpty(map['tags']),
+      reportCount: _intOrZero(map['reportCount']),
+      moderationStatus: map['moderationStatus']?.toString() ?? 'active',
+      isHiddenByModeration: map['isHiddenByModeration'] is bool
+          ? map['isHiddenByModeration'] as bool
+          : false,
+    );
+  }
+
+  static DateTime _dateTimeOrNow(dynamic value) {
+    if (value is Timestamp) return value.toDate();
+    if (value is DateTime) return value;
+    return DateTime.now();
+  }
+
+  static int _intOrZero(dynamic value) {
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    return 0;
+  }
+
+  static List<String> _stringListOrEmpty(dynamic value) {
+    if (value is! List) return const [];
+    return value.whereType<String>().toList(growable: false);
+  }
 
   PostModel copyWith({
     List<String>? likes,

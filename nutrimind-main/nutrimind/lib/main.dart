@@ -38,8 +38,53 @@ class NutriMindApp extends StatelessWidget {
         title: 'NutriMind',
         debugShowCheckedModeBanner: false,
         theme: ModernAppTheme.lightTheme,
-        home: const AuthGate(),
+        home: const _AuthScopedProviderCleanup(
+          child: AuthGate(),
+        ),
       ),
     );
+  }
+}
+
+class _AuthScopedProviderCleanup extends StatefulWidget {
+  const _AuthScopedProviderCleanup({required this.child});
+
+  final Widget child;
+
+  @override
+  State<_AuthScopedProviderCleanup> createState() =>
+      _AuthScopedProviderCleanupState();
+}
+
+class _AuthScopedProviderCleanupState
+    extends State<_AuthScopedProviderCleanup> {
+  String? _activeUid;
+
+  @override
+  Widget build(BuildContext context) {
+    final auth = context.watch<AuthProvider>();
+    final nextUid = auth.status == AuthStatus.authenticated
+        ? auth.userModel?.uid.trim()
+        : null;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _syncUserScopedProviders(nextUid);
+    });
+
+    return widget.child;
+  }
+
+  void _syncUserScopedProviders(String? nextUid) {
+    final safeUid = nextUid == null || nextUid.isEmpty ? null : nextUid;
+    if (_activeUid == safeUid) return;
+
+    if (_activeUid != null) {
+      context.read<MealProvider>().clearUserScopedState();
+      context.read<NotificationProvider>().clearUserScopedState();
+      context.read<CommunityProvider>().clearAuthScopedState();
+    }
+
+    _activeUid = safeUid;
   }
 }

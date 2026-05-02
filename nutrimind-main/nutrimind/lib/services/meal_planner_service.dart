@@ -3,6 +3,16 @@ import 'dart:math';
 import '../data/meal_planner_food_data.dart';
 import '../models/meal_planner_models.dart';
 
+const double _budgetFriendlyMaxPricePhp = 70;
+const Set<String> _spicyKeywords = {
+  'spicy',
+  'curry',
+  'chili',
+  'chilli',
+  'sili',
+  'hot',
+};
+
 /// Core meal planning logic ported from the Python prototype.
 ///
 /// The local Davao foods are prototype estimates, not live market prices.
@@ -136,14 +146,20 @@ class MealPlannerService {
             input.preferredBreakfastGroups,
           )
         : foods;
+    final filteredWithPreferences = _applySpecialPreferenceFilters(
+      filtered,
+      excluded,
+    );
 
-    filtered.sort((a, b) {
+    filteredWithPreferences.sort((a, b) {
       final priceCompare = a.estimatedPricePhp.compareTo(b.estimatedPricePhp);
       if (priceCompare != 0) return priceCompare;
       return b.protein.compareTo(a.protein);
     });
 
-    return filtered.map(_localFoodToPlannerItem).toList(growable: false);
+    return filteredWithPreferences
+        .map(_localFoodToPlannerItem)
+        .toList(growable: false);
   }
 
   bool _isExcludedLocalFood(
@@ -219,6 +235,44 @@ class MealPlannerService {
     }).toList(growable: false);
 
     return filtered.isEmpty ? foods : filtered;
+  }
+
+  List<LocalMealPlannerFood> _applySpecialPreferenceFilters(
+    List<LocalMealPlannerFood> foods,
+    Set<String> excluded,
+  ) {
+    if (foods.isEmpty) return foods;
+
+    var filtered = foods;
+    if (excluded.contains('expensive_ingredients')) {
+      final budgetFriendly = filtered
+          .where((food) => food.estimatedPricePhp <= _budgetFriendlyMaxPricePhp)
+          .toList(growable: false);
+      if (budgetFriendly.isNotEmpty) {
+        filtered = budgetFriendly;
+      }
+    }
+
+    if (excluded.contains('spicy_food')) {
+      final nonSpicy = filtered
+          .where((food) => !_matchesSpicyLocalFood(food))
+          .toList(growable: false);
+      if (nonSpicy.isNotEmpty) {
+        filtered = nonSpicy;
+      }
+    }
+
+    return filtered;
+  }
+
+  bool _matchesSpicyLocalFood(LocalMealPlannerFood food) {
+    final searchableText = [
+      food.id,
+      food.name,
+      ...food.ingredients,
+      food.healthNote,
+    ].map(_normalizeKey).join(' ');
+    return _spicyKeywords.any(searchableText.contains);
   }
 
   bool _isProteinCategory(String category) {
@@ -362,8 +416,39 @@ class MealPlannerService {
       }
     }
 
-    candidates.sort((a, b) => b.calories.compareTo(a.calories));
-    return candidates;
+    final filteredCandidates = candidates
+        .where((item) => !excluded.contains(_normalizeKey(item.id)))
+        .toList(growable: false);
+    final filteredWithPreferences = _applyFallbackSpecialPreferenceFilters(
+      filteredCandidates,
+      excluded,
+    );
+
+    filteredWithPreferences.sort((a, b) => b.calories.compareTo(a.calories));
+    return filteredWithPreferences;
+  }
+
+  List<PlannerFoodItem> _applyFallbackSpecialPreferenceFilters(
+    List<PlannerFoodItem> candidates,
+    Set<String> excluded,
+  ) {
+    if (!excluded.contains('spicy_food') || candidates.isEmpty) {
+      return candidates;
+    }
+
+    final nonSpicy = candidates
+        .where((item) => !_matchesSpicyPlannerItem(item))
+        .toList(growable: false);
+    return nonSpicy.isEmpty ? candidates : nonSpicy;
+  }
+
+  bool _matchesSpicyPlannerItem(PlannerFoodItem item) {
+    final searchableText = [
+      item.id,
+      item.name,
+      ...item.ingredients,
+    ].map(_normalizeKey).join(' ');
+    return _spicyKeywords.any(searchableText.contains);
   }
 
   Map<String, Map<String, int>> _fallbackGroupsForSlot(

@@ -81,6 +81,29 @@ class EngagementService {
     });
   }
 
+  Future<List<WeeklyStatsModel>> getWeeklyLeaderboard({
+    DateTime? anchorDate,
+    int limit = EngagementConfig.leaderboardDisplayLimit,
+  }) async {
+    final weekId = weekIdFor(anchorDate ?? DateTime.now());
+    final snapshot = await _db
+        .collectionGroup('weeklyStats')
+        .where('weekId', isEqualTo: weekId)
+        .limit(EngagementConfig.leaderboardQueryLimit)
+        .get();
+    final stats = snapshot.docs
+        .map((doc) => WeeklyStatsModel.fromMap(doc.data()))
+        .where((stat) => stat.points > 0)
+        .toList()
+      ..sort((a, b) => EngagementConfig.compareLeaderboardRows(
+            aPoints: a.points,
+            aDisplayName: a.displayName,
+            bPoints: b.points,
+            bDisplayName: b.displayName,
+          ));
+    return stats.take(limit).toList(growable: false);
+  }
+
   Stream<List<BadgeModel>> badgesStream(String uid) {
     if (uid.isEmpty) return Stream.value(const <BadgeModel>[]);
     return _badges(uid).orderBy('earnedAt', descending: true).snapshots().map(

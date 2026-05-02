@@ -1,0 +1,37 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isSelf(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    function isImageUpload() {
+      return request.resource != null
+          && request.resource.size < 10 * 1024 * 1024
+          && request.resource.contentType.matches('image/.*');
+    }
+
+    match /profile_images/{uid}/{fileName} {
+      allow read: if signedIn();
+      allow create, update: if isSelf(uid)
+          && fileName == 'profile.jpg'
+          && isImageUpload();
+      allow delete: if isSelf(uid);
+    }
+
+    match /post_images/{uid}/{fileName} {
+      allow read: if signedIn();
+      allow create, update: if isSelf(uid)
+          && isImageUpload();
+      allow delete: if isSelf(uid);
+    }
+
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

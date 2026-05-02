@@ -1,4 +1,7 @@
+import 'dart:developer' as developer;
+
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';
 import '../models/user_model.dart';
 import '../models/meal_model.dart';
@@ -47,25 +50,42 @@ class FirestoreService {
   }
 
   Future<UserModel?> getUser(String uid) async {
-    final doc = await _users.doc(uid).get();
+    final safeUid = uid.trim();
+    if (safeUid.isEmpty) return null;
+    final doc = await _users.doc(safeUid).get();
     if (!doc.exists) return null;
-    return UserModel.fromMap(doc.data() as Map<String, dynamic>);
+    return _userFromDoc(doc);
   }
 
   Stream<UserModel?> userStream(String uid) {
-    if (uid.isEmpty) return Stream.value(null);
-    return _users.doc(uid).snapshots().map((doc) {
+    final safeUid = uid.trim();
+    if (safeUid.isEmpty) return Stream.value(null);
+    return _users.doc(safeUid).snapshots().map((doc) {
       if (!doc.exists) return null;
-      return UserModel.fromMap(doc.data() as Map<String, dynamic>);
+      return _userFromDoc(doc);
     });
   }
 
   Future<void> updateUser(String uid, Map<String, dynamic> data) async {
-    await _users.doc(uid).update(data);
+    final safeUid = uid.trim();
+    if (safeUid.isEmpty) {
+      throw ArgumentError('Firestore write requires non-empty user id');
+    }
+    await _users.doc(safeUid).update(data);
   }
 
   Future<void> updateUserProfile(UserModel user) async {
+    if (user.uid.trim().isEmpty) {
+      throw ArgumentError('Firestore write requires non-empty user id');
+    }
     await _users.doc(user.uid).set(user.toMap(), SetOptions(merge: true));
+  }
+
+  UserModel _userFromDoc(DocumentSnapshot doc) {
+    final data = Map<String, dynamic>.from(doc.data() as Map<String, dynamic>);
+    final storedUid = data['uid']?.toString().trim() ?? '';
+    data['uid'] = storedUid.isEmpty ? doc.id : storedUid;
+    return UserModel.fromMap(data);
   }
 
   // Notifications
@@ -96,9 +116,10 @@ class FirestoreService {
   ) async {
     final id = notification.id.isNotEmpty ? notification.id : _uuid.v4();
     final docRef = _notifications(targetUid).doc(id);
-    final existing = await docRef.get();
-    if (existing.exists) return;
-    await docRef.set(notification.copyWith(id: id).toMap());
+    await docRef.set(
+      notification.copyWith(id: id).toMap(),
+      SetOptions(merge: false),
+    );
   }
 
   Future<void> markNotificationAsRead(
@@ -193,9 +214,7 @@ class FirestoreService {
         .where('date', isGreaterThanOrEqualTo: Timestamp.fromDate(start))
         .where('date', isLessThan: Timestamp.fromDate(end))
         .snapshots()
-        .map((s) => s.docs
-            .map((d) => MealModel.fromMap(d.data() as Map<String, dynamic>))
-            .toList()
+        .map((s) => s.docs.map(_mealFromDoc).toList()
           ..sort((a, b) => a.type.index.compareTo(b.type.index)));
   }
 
@@ -207,39 +226,123 @@ class FirestoreService {
         .where('date', isGreaterThanOrEqualTo: Timestamp.fromDate(start))
         .where('date', isLessThan: Timestamp.fromDate(end))
         .get();
-    return snap.docs
-        .map((d) => MealModel.fromMap(d.data() as Map<String, dynamic>))
-        .toList()
+    return snap.docs.map(_mealFromDoc).toList()
       ..sort((a, b) => a.type.index.compareTo(b.type.index));
   }
 
-  Future<void> logMeal(String uid, String mealId) async {
-    if (uid.isEmpty || mealId.isEmpty) {
-      throw ArgumentError('logMeal requires non-empty uid and mealId');
+  MealModel _mealFromDoc(QueryDocumentSnapshot doc) {
+    final data = Map<String, dynamic>.from(doc.data() as Map<String, dynamic>);
+    if (data['id'] != doc.id) {
+      data['id'] = doc.id;
     }
-    await _meals(uid).doc(mealId).update({
-      'status': MealStatus.logged.name,
-      'loggedAt': Timestamp.fromDate(DateTime.now()),
-    });
+    return MealModel.fromMap(data);
+  }
+
+  Future<void> logMeal(String uid, String mealId, {int? calories}) async {
+    final safeUid = _requiredId(uid, 'uid', 'logMeal');
+    final safeMealId = _requiredId(mealId, 'mealId', 'logMeal');
+    if (calories != null && calories <= 0) {
+      throw ArgumentError('Calories must be greater than zero.');
+    }
+    try {
+      final update = <String, dynamic>{
+        'status': MealStatus.logged.name,
+        'loggedAt': Timestamp.fromDate(DateTime.now()),
+      };
+      if (calories != null) update['calories'] = calories;
+      await _meals(safeUid).doc(safeMealId).update(update);
+    } catch (e, st) {
+      _logMealWriteFailure(
+        operation: 'logMeal',
+        uid: safeUid,
+        mealId: safeMealId,
+        error: e,
+        stackTrace: st,
+      );
+      rethrow;
+    }
   }
 
   Future<void> addMeal(MealModel meal) async {
-    if (meal.userId.isEmpty) {
-      throw ArgumentError('Firestore write requires non-empty user id');
+    final safeUid = _requiredId(meal.userId, 'uid', 'addMeal');
+    final safeMealId = _requiredId(meal.id, 'mealId', 'addMeal');
+    try {
+      await _meals(safeUid).doc(safeMealId).set(meal.toMap());
+    } catch (e, st) {
+      _logMealWriteFailure(
+        operation: 'addMeal',
+        uid: safeUid,
+        mealId: safeMealId,
+        date: meal.date,
+        error: e,
+        stackTrace: st,
+      );
+      rethrow;
     }
-    if (meal.id.isEmpty) {
-      throw ArgumentError('Firestore write requires non-empty meal id');
-    }
-    await _meals(meal.userId).doc(meal.id).set(meal.toMap());
   }
 
   Future<void> deleteMeal(String uid, String mealId) async {
-    await _meals(uid).doc(mealId).delete();
+    final safeUid = _requiredId(uid, 'uid', 'deleteMeal');
+    final safeMealId = _requiredId(mealId, 'mealId', 'deleteMeal');
+    try {
+      await _meals(safeUid).doc(safeMealId).delete();
+    } catch (e, st) {
+      _logMealWriteFailure(
+        operation: 'deleteMeal',
+        uid: safeUid,
+        mealId: safeMealId,
+        error: e,
+        stackTrace: st,
+      );
+      rethrow;
+    }
   }
 
   Future<void> updateMeal(
       String uid, String mealId, Map<String, dynamic> data) async {
-    await _meals(uid).doc(mealId).update(data);
+    final safeUid = _requiredId(uid, 'uid', 'updateMeal');
+    final safeMealId = _requiredId(mealId, 'mealId', 'updateMeal');
+    try {
+      await _meals(safeUid).doc(safeMealId).update(data);
+    } catch (e, st) {
+      _logMealWriteFailure(
+        operation: 'updateMeal',
+        uid: safeUid,
+        mealId: safeMealId,
+        error: e,
+        stackTrace: st,
+      );
+      rethrow;
+    }
+  }
+
+  String _requiredId(String value, String field, String operation) {
+    final trimmed = value.trim();
+    if (trimmed.isEmpty) {
+      throw ArgumentError('$operation requires non-empty $field');
+    }
+    return trimmed;
+  }
+
+  void _logMealWriteFailure({
+    required String operation,
+    required String uid,
+    required String mealId,
+    DateTime? date,
+    required Object error,
+    StackTrace? stackTrace,
+  }) {
+    final firestoreCode =
+        error is FirebaseException ? ' code=${error.code}' : '';
+    final firestoreMessage =
+        error is FirebaseException ? ' message=${error.message}' : '';
+    developer.log(
+      '[MealWrite] operation=$operation uid=$uid mealId=$mealId '
+      'date=${date?.toIso8601String() ?? 'n/a'}$firestoreCode$firestoreMessage',
+      error: error,
+      stackTrace: stackTrace,
+      level: 1000,
+    );
   }
 
   // Pantry
@@ -368,30 +471,86 @@ class FirestoreService {
   // ─── POSTS ──────────────────────────────────────
 
   Stream<List<PostModel>> postsStream({String? category}) {
-    Query query = _posts.orderBy('createdAt', descending: true);
-    if (category != null && category != 'Trending') {
-      query = query.where('category', isEqualTo: category);
-    }
-    return query.limit(30).snapshots().map((s) => s.docs
-        .map((d) => PostModel.fromMap(d.data() as Map<String, dynamic>))
-        .where((post) => !post.isHiddenByModeration)
-        .toList());
+    final selectedCategory = category?.trim();
+    final categoryFilter = selectedCategory == null ||
+            selectedCategory.isEmpty ||
+            selectedCategory == 'Trending'
+        ? null
+        : selectedCategory;
+    final query = _posts
+        .orderBy('createdAt', descending: true)
+        .limit(categoryFilter == null ? 30 : 100);
+
+    return query.snapshots().map((s) {
+      final posts = <PostModel>[];
+      for (final doc in s.docs) {
+        try {
+          final post = PostModel.fromMap(
+            doc.data() as Map<String, dynamic>,
+            documentId: doc.id,
+          );
+          if (post.isHiddenByModeration) continue;
+          if (categoryFilter != null && post.category != categoryFilter) {
+            continue;
+          }
+          posts.add(post);
+        } catch (e, st) {
+          debugPrint(
+            '[Community] post parse failed docId=${doc.id} '
+            'category=${category ?? 'Trending'} error=$e\n$st',
+          );
+        }
+      }
+      return posts;
+    }).handleError((Object error, StackTrace stackTrace) {
+      debugPrint(
+        '[Community] posts stream failed category=${category ?? 'Trending'}: '
+        '$error\n$stackTrace',
+      );
+      throw error;
+    });
   }
 
   Stream<List<PostModel>> userPostsStream(String uid) {
     if (uid.isEmpty) return Stream.value(const <PostModel>[]);
     return _posts.where('userId', isEqualTo: uid).limit(50).snapshots().map(
-        (snapshot) => snapshot.docs
-            .map((doc) => PostModel.fromMap(doc.data() as Map<String, dynamic>))
-            .where((post) => !post.isHiddenByModeration)
-            .toList()
-          ..sort((a, b) => b.createdAt.compareTo(a.createdAt)));
+      (snapshot) {
+        final posts = <PostModel>[];
+        for (final doc in snapshot.docs) {
+          try {
+            final post = PostModel.fromMap(
+              doc.data() as Map<String, dynamic>,
+              documentId: doc.id,
+            );
+            if (!post.isHiddenByModeration) posts.add(post);
+          } catch (e, st) {
+            debugPrint(
+              '[Community] user post parse failed docId=${doc.id} uid=$uid error=$e\n$st',
+            );
+          }
+        }
+        return posts..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      },
+    ).handleError((Object error, StackTrace stackTrace) {
+      debugPrint(
+          '[Community] user posts stream failed uid=$uid: $error\n$stackTrace');
+      throw error;
+    });
   }
 
   Future<PostModel?> getPost(String postId) async {
     final doc = await _posts.doc(postId).get();
     if (!doc.exists) return null;
-    return PostModel.fromMap(doc.data() as Map<String, dynamic>);
+    try {
+      return PostModel.fromMap(
+        doc.data() as Map<String, dynamic>,
+        documentId: doc.id,
+      );
+    } catch (e, st) {
+      debugPrint(
+          '[Community] getPost parse failed postId=$postId error=$e\n$st');
+      rethrow;
+    }
   }
 
   Future<String> createPost(PostModel post) async {
@@ -408,7 +567,13 @@ class FirestoreService {
       createdAt: DateTime.now(),
       tags: post.tags,
     );
-    await _posts.doc(id).set(newPost.toMap());
+    try {
+      await _posts.doc(id).set(newPost.toMap());
+    } catch (e, st) {
+      debugPrint(
+          '[Community] createPost write failed postId=$id error=$e\n$st');
+      rethrow;
+    }
     return id;
   }
 
@@ -602,9 +767,18 @@ class FirestoreService {
       createdAt: DateTime.now(),
     );
     await _comments(comment.postId).doc(id).set(newComment.toMap());
-    await _posts.doc(comment.postId).update({
-      'commentCount': FieldValue.increment(1),
-    });
+    try {
+      await _posts.doc(comment.postId).update({
+        'commentCount': FieldValue.increment(1),
+      });
+    } catch (e, st) {
+      developer.log(
+        'Comment created but failed to update post commentCount',
+        error: e,
+        stackTrace: st,
+        level: 900,
+      );
+    }
   }
 
   // ─── LEADERBOARD ────────────────────────────────

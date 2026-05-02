@@ -114,11 +114,13 @@ class _RecipeBrowserScreenState extends State<RecipeBrowserScreen> {
         _error = null;
       });
     } catch (e) {
+      debugPrint('Recipe list load failed: $e');
       if (!mounted || requestId != _requestId) return;
       setState(() {
         _recipes = const [];
         _loading = false;
-        _error = e.toString();
+        _error =
+            'Could not load recipes. Please check your connection and try again.';
       });
     }
   }
@@ -193,11 +195,13 @@ class _RecipeBrowserScreenState extends State<RecipeBrowserScreen> {
                 }
 
                 if (snapshot.hasError) {
-                  return _DetailScaffold(
+                  debugPrint('Recipe detail load failed: ${snapshot.error}');
+                  return const _DetailScaffold(
                     child: _StateBox(
                       icon: Icons.error_outline,
                       title: 'Recipe details are unavailable',
-                      message: snapshot.error.toString(),
+                      message:
+                          'Please check your connection and try opening this recipe again.',
                     ),
                   );
                 }
@@ -417,86 +421,91 @@ class _RecipeBrowserScreenState extends State<RecipeBrowserScreen> {
               minHeight: 2,
             ),
           Expanded(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
-              child: Column(
-                children: [
-                  _buildSearchPanel(),
-                  const SizedBox(height: 16),
-                  if (_kLocalMode)
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: ModernAppTheme.softGreen,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Row(
-                        children: [
-                          Icon(Icons.eco_outlined,
-                              size: 14, color: ModernAppTheme.primaryGreen),
-                          SizedBox(width: 6),
-                          Expanded(
-                            child: Text(
-                              'Davao local recipes — local sample dataset',
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 560),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+                  child: Column(
+                    children: [
+                      _buildSearchPanel(),
+                      const SizedBox(height: 16),
+                      if (_kLocalMode)
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: ModernAppTheme.softGreen,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Row(
+                            children: [
+                              Icon(Icons.eco_outlined,
+                                  size: 14, color: ModernAppTheme.primaryGreen),
+                              SizedBox(width: 6),
+                              Expanded(
+                                child: Text(
+                                  'Davao local recipes — local sample dataset',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: ModernAppTheme.primaryGreen,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        )
+                      else ...[
+                        _DataNoticeBox(message: _dataNotice),
+                        const SizedBox(height: 12),
+                        if (!_backendHealthy)
+                          Container(
+                            width: double.infinity,
+                            margin: const EdgeInsets.only(bottom: 12),
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: ModernAppTheme.warmBlush,
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(
+                                color: ModernAppTheme.warning
+                                    .withValues(alpha: 0.25),
+                              ),
+                            ),
+                            child: const Text(
+                              'Backend health check did not succeed, but recipe requests may still work once the API is up.',
                               style: TextStyle(
                                 fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                                color: ModernAppTheme.primaryGreen,
+                                color: ModernAppTheme.textDark,
                               ),
                             ),
                           ),
-                        ],
-                      ),
-                    )
-                  else ...[
-                    _DataNoticeBox(message: _dataNotice),
-                    const SizedBox(height: 12),
-                    if (!_backendHealthy)
-                      Container(
-                        width: double.infinity,
-                        margin: const EdgeInsets.only(bottom: 12),
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: ModernAppTheme.warmBlush,
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(
-                            color:
-                                ModernAppTheme.warning.withValues(alpha: 0.25),
-                          ),
-                        ),
-                        child: const Text(
-                          'Backend health check did not succeed, but recipe requests may still work once the API is up.',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: ModernAppTheme.textDark,
-                          ),
-                        ),
-                      ),
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        'Recipe API: ${_recipeApiService.baseUrl}',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: ModernAppTheme.textMid,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ),
-                  ],
-                  const SizedBox(height: 10),
-                  Expanded(
-                    child: showInitialLoading
-                        ? const Center(
-                            child: CircularProgressIndicator(
-                              color: ModernAppTheme.primaryGreen,
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            'Recipe API: ${_recipeApiService.baseUrl}',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: ModernAppTheme.textMid,
+                              fontWeight: FontWeight.w500,
                             ),
-                          )
-                        : _buildContent(),
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 10),
+                      Expanded(
+                        child: showInitialLoading
+                            ? const Center(
+                                child: CircularProgressIndicator(
+                                  color: ModernAppTheme.primaryGreen,
+                                ),
+                              )
+                            : _buildContent(),
+                      ),
+                    ],
                   ),
-                ],
+                ),
               ),
             ),
           ),
@@ -570,7 +579,7 @@ class _RecipeBrowserScreenState extends State<RecipeBrowserScreen> {
         child: _StateBox(
           icon: Icons.cloud_off_outlined,
           title: 'Could not load recipes',
-          message: _error!,
+          message: 'Please check your connection and try again.',
           actionLabel: 'Try again',
           onPressed: _loadRecipes,
         ),
@@ -715,7 +724,6 @@ class _RecipeBrowserScreenState extends State<RecipeBrowserScreen> {
       ),
     );
   }
-
 }
 
 class _StateBox extends StatelessWidget {

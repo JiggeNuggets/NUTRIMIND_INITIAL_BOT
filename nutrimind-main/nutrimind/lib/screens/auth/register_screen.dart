@@ -41,8 +41,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
       // AuthGate routes the user to ProfileSetupScreen automatically.
       Navigator.popUntil(context, (route) => route.isFirst);
     } else if (auth.error != null && mounted) {
+      debugPrint('Register failed: ${auth.error}');
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(auth.error!),
+        content: const Text(
+          'Could not create your account. Please check your details and try again.',
+        ),
         backgroundColor: AppTheme.errorRed,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
@@ -54,6 +57,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
+    final media = MediaQuery.of(context);
+    final compact = media.size.height < 720 || media.size.width < 360;
+    final horizontalPadding = compact ? 20.0 : 24.0;
+    final fieldGap = compact ? 14.0 : 18.0;
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -66,209 +73,227 @@ class _RegisterScreenState extends State<RegisterScreen> {
             // ── Form body ─────────────────────────────────────────────────
             Expanded(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(24, 8, 24, 40),
-                child: Form(
-                  key: _formKey,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const SizedBox(height: 8),
-                      const Text(
-                        'Create Account',
-                        style: TextStyle(
-                          fontSize: 28,
-                          fontWeight: FontWeight.w800,
-                          color: AppTheme.textDark,
-                          letterSpacing: -0.6,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      const Text(
-                        'Start your wellness journey.',
-                        style: TextStyle(color: AppTheme.textMid, fontSize: 14),
-                      ),
-                      const SizedBox(height: 28),
-
-                      // Form card
-                      Container(
-                        padding: const EdgeInsets.all(20),
-                        decoration: BoxDecoration(
-                          color: ModernAppTheme.white,
-                          borderRadius:
-                              BorderRadius.circular(ModernAppTheme.radiusLg),
-                          border: Border.all(color: ModernAppTheme.mediumGray),
-                          boxShadow: ModernAppTheme.shadowSm,
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            _fieldLabel('Full Name'),
-                            const SizedBox(height: 8),
-                            TextFormField(
-                              controller: _nameCtrl,
-                              textCapitalization: TextCapitalization.words,
-                              decoration: const InputDecoration(
-                                hintText: 'e.g. Juan Dela Cruz',
-                                prefixIcon:
-                                    Icon(Icons.person_outline, size: 18),
-                              ),
-                              validator: (v) => (v == null || v.trim().isEmpty)
-                                  ? 'Please enter your name'
-                                  : null,
-                            ),
-                            const SizedBox(height: 18),
-                            _fieldLabel('Email Address'),
-                            const SizedBox(height: 8),
-                            TextFormField(
-                              controller: _emailCtrl,
-                              keyboardType: TextInputType.emailAddress,
-                              decoration: const InputDecoration(
-                                hintText: 'you@example.com',
-                                prefixIcon:
-                                    Icon(Icons.email_outlined, size: 18),
-                              ),
-                              validator: (v) {
-                                if (v == null || v.trim().isEmpty) {
-                                  return 'Please enter your email';
-                                }
-                                if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$')
-                                    .hasMatch(v.trim())) {
-                                  return 'Enter a valid email address';
-                                }
-                                return null;
-                              },
-                            ),
-                            const SizedBox(height: 18),
-                            _fieldLabel('Password'),
-                            const SizedBox(height: 8),
-                            TextFormField(
-                              controller: _passwordCtrl,
-                              obscureText: _obscurePassword,
-                              decoration: InputDecoration(
-                                hintText: 'At least 6 characters',
-                                prefixIcon:
-                                    const Icon(Icons.lock_outline, size: 18),
-                                suffixIcon: IconButton(
-                                  icon: Icon(
-                                    _obscurePassword
-                                        ? Icons.visibility_outlined
-                                        : Icons.visibility_off_outlined,
-                                    size: 18,
-                                    color: AppTheme.textLight,
-                                  ),
-                                  onPressed: () => setState(() =>
-                                      _obscurePassword = !_obscurePassword),
-                                ),
-                              ),
-                              validator: (v) => (v == null || v.length < 6)
-                                  ? 'Password must be at least 6 characters'
-                                  : null,
-                            ),
-                            const SizedBox(height: 18),
-                            _fieldLabel('Location'),
-                            const SizedBox(height: 8),
-                            TextFormField(
-                              controller: _locationCtrl,
-                              decoration: const InputDecoration(
-                                hintText: 'Davao City, Philippines',
-                                prefixIcon:
-                                    Icon(Icons.location_on_outlined, size: 18),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-
-                      // Davao note
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 14, vertical: 10),
-                        decoration: BoxDecoration(
-                          color: AppTheme.softGreen,
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: const Row(
-                          children: [
-                            Icon(Icons.location_on,
-                                color: AppTheme.primaryGreen, size: 16),
-                            SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                'NutriMind uses Davao local market prices and ingredients for your meal plan.',
-                                style: TextStyle(
-                                    color: AppTheme.primaryGreen,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w500),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 28),
-
-                      // Create Account button
-                      SizedBox(
-                        width: double.infinity,
-                        height: 52,
-                        child: ElevatedButton(
-                          onPressed: auth.loading ? null : _submit,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppTheme.primaryGreen,
-                            foregroundColor: Colors.white,
-                            elevation: 0,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(14),
+                keyboardDismissBehavior:
+                    ScrollViewKeyboardDismissBehavior.onDrag,
+                padding: EdgeInsets.fromLTRB(
+                  horizontalPadding,
+                  8,
+                  horizontalPadding,
+                  40 + media.viewInsets.bottom,
+                ),
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 520),
+                    child: Form(
+                      key: _formKey,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const SizedBox(height: 8),
+                          const Text(
+                            'Create Account',
+                            style: TextStyle(
+                              fontSize: 28,
+                              fontWeight: FontWeight.w800,
+                              color: AppTheme.textDark,
+                              letterSpacing: -0.6,
                             ),
                           ),
-                          child: auth.loading
-                              ? const SizedBox(
-                                  width: 20,
-                                  height: 20,
-                                  child: CircularProgressIndicator(
-                                      strokeWidth: 2, color: Colors.white),
-                                )
-                              : const Text(
-                                  'Create Account',
-                                  style: TextStyle(
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-
-                      // Sign-in link
-                      Center(
-                        child: TextButton(
-                          onPressed: () => Navigator.maybePop(context),
-                          style: TextButton.styleFrom(
-                            padding: EdgeInsets.zero,
-                            minimumSize: Size.zero,
-                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          const SizedBox(height: 4),
+                          const Text(
+                            'Start your wellness journey.',
+                            style: TextStyle(
+                                color: AppTheme.textMid, fontSize: 14),
                           ),
-                          child: RichText(
-                            text: const TextSpan(
-                              style: TextStyle(
-                                  fontSize: 13.5, color: AppTheme.textMid),
+                          SizedBox(height: compact ? 20 : 28),
+
+                          // Form card
+                          Container(
+                            padding: EdgeInsets.all(compact ? 16 : 20),
+                            decoration: BoxDecoration(
+                              color: ModernAppTheme.white,
+                              borderRadius: BorderRadius.circular(
+                                  ModernAppTheme.radiusLg),
+                              border:
+                                  Border.all(color: ModernAppTheme.mediumGray),
+                              boxShadow: ModernAppTheme.shadowSm,
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                TextSpan(text: 'Already have an account? '),
-                                TextSpan(
-                                  text: 'Sign in',
-                                  style: TextStyle(
-                                    color: AppTheme.primaryGreen,
-                                    fontWeight: FontWeight.w700,
-                                    decoration: TextDecoration.underline,
-                                    decorationColor: AppTheme.primaryGreen,
+                                _fieldLabel('Full Name'),
+                                const SizedBox(height: 8),
+                                TextFormField(
+                                  controller: _nameCtrl,
+                                  textCapitalization: TextCapitalization.words,
+                                  decoration: const InputDecoration(
+                                    hintText: 'e.g. Juan Dela Cruz',
+                                    prefixIcon:
+                                        Icon(Icons.person_outline, size: 18),
+                                  ),
+                                  validator: (v) =>
+                                      (v == null || v.trim().isEmpty)
+                                          ? 'Please enter your name'
+                                          : null,
+                                ),
+                                SizedBox(height: fieldGap),
+                                _fieldLabel('Email Address'),
+                                const SizedBox(height: 8),
+                                TextFormField(
+                                  controller: _emailCtrl,
+                                  keyboardType: TextInputType.emailAddress,
+                                  decoration: const InputDecoration(
+                                    hintText: 'you@example.com',
+                                    prefixIcon:
+                                        Icon(Icons.email_outlined, size: 18),
+                                  ),
+                                  validator: (v) {
+                                    if (v == null || v.trim().isEmpty) {
+                                      return 'Please enter your email';
+                                    }
+                                    if (!RegExp(
+                                            r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$')
+                                        .hasMatch(v.trim())) {
+                                      return 'Enter a valid email address';
+                                    }
+                                    return null;
+                                  },
+                                ),
+                                SizedBox(height: fieldGap),
+                                _fieldLabel('Password'),
+                                const SizedBox(height: 8),
+                                TextFormField(
+                                  controller: _passwordCtrl,
+                                  obscureText: _obscurePassword,
+                                  decoration: InputDecoration(
+                                    hintText: 'At least 6 characters',
+                                    prefixIcon: const Icon(Icons.lock_outline,
+                                        size: 18),
+                                    suffixIcon: IconButton(
+                                      icon: Icon(
+                                        _obscurePassword
+                                            ? Icons.visibility_outlined
+                                            : Icons.visibility_off_outlined,
+                                        size: 18,
+                                        color: AppTheme.textLight,
+                                      ),
+                                      onPressed: () => setState(() =>
+                                          _obscurePassword = !_obscurePassword),
+                                    ),
+                                  ),
+                                  validator: (v) => (v == null || v.length < 6)
+                                      ? 'Password must be at least 6 characters'
+                                      : null,
+                                ),
+                                SizedBox(height: fieldGap),
+                                _fieldLabel('Location'),
+                                const SizedBox(height: 8),
+                                TextFormField(
+                                  controller: _locationCtrl,
+                                  decoration: const InputDecoration(
+                                    hintText: 'Davao City, Philippines',
+                                    prefixIcon: Icon(Icons.location_on_outlined,
+                                        size: 18),
                                   ),
                                 ),
                               ],
                             ),
                           ),
-                        ),
+                          SizedBox(height: compact ? 10 : 12),
+
+                          // Davao note
+                          Container(
+                            padding: EdgeInsets.symmetric(
+                              horizontal: compact ? 12 : 14,
+                              vertical: compact ? 9 : 10,
+                            ),
+                            decoration: BoxDecoration(
+                              color: AppTheme.softGreen,
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: const Row(
+                              children: [
+                                Icon(Icons.location_on,
+                                    color: AppTheme.primaryGreen, size: 16),
+                                SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    'NutriMind uses Davao local market prices and ingredients for your meal plan.',
+                                    style: TextStyle(
+                                        color: AppTheme.primaryGreen,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w500),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          SizedBox(height: compact ? 20 : 28),
+
+                          // Create Account button
+                          SizedBox(
+                            width: double.infinity,
+                            height: 52,
+                            child: ElevatedButton(
+                              onPressed: auth.loading ? null : _submit,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppTheme.primaryGreen,
+                                foregroundColor: Colors.white,
+                                elevation: 0,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(14),
+                                ),
+                              ),
+                              child: auth.loading
+                                  ? const SizedBox(
+                                      width: 20,
+                                      height: 20,
+                                      child: CircularProgressIndicator(
+                                          strokeWidth: 2, color: Colors.white),
+                                    )
+                                  : const Text(
+                                      'Create Account',
+                                      style: TextStyle(
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                            ),
+                          ),
+                          SizedBox(height: compact ? 16 : 20),
+
+                          // Sign-in link
+                          Center(
+                            child: TextButton(
+                              onPressed: () => Navigator.maybePop(context),
+                              style: TextButton.styleFrom(
+                                padding: EdgeInsets.zero,
+                                minimumSize: Size.zero,
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              ),
+                              child: RichText(
+                                text: const TextSpan(
+                                  style: TextStyle(
+                                      fontSize: 13.5, color: AppTheme.textMid),
+                                  children: [
+                                    TextSpan(text: 'Already have an account? '),
+                                    TextSpan(
+                                      text: 'Sign in',
+                                      style: TextStyle(
+                                        color: AppTheme.primaryGreen,
+                                        fontWeight: FontWeight.w700,
+                                        decoration: TextDecoration.underline,
+                                        decorationColor: AppTheme.primaryGreen,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                    ],
+                    ),
                   ),
                 ),
               ),

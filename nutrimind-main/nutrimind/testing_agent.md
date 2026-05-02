@@ -254,3 +254,157 @@ If ANY core flow fails:
 Fix → retest → repeat
 
 ---
+
+
+---
+
+# 📁 ACTIVE FOLDER RULE
+
+Always work only in:
+
+`C:\Users\wapak\Downloads\nutrimind-main\nutrimind-main\nutrimind`
+
+Never test, edit, or run Flutter commands from:
+
+`C:\Users\wapak\Downloads\nutrimind-main`
+
+Before testing, confirm:
+
+```powershell
+pwd
+dir pubspec.yaml
+
+✅ REQUIRED COMMAND CHECKS
+
+Run from the active app folder:
+
+flutter analyze
+flutter test
+flutter run -d chrome
+
+The app is not ready if:
+
+flutter analyze has errors
+flutter test fails
+app cannot launch
+🔥 FIRESTORE WEB CRASH CHECK
+
+Watch terminal and Chrome Console for:
+
+FIRESTORE INTERNAL ASSERTION FAILED
+Unexpected state
+onSnapshotUnsubscribe has not been initialized
+permission-denied
+Missing or insufficient permissions
+
+If these appear:
+
+Stop testing.
+Copy the exact log.
+Identify which screen caused it.
+Do not continue to new phases.
+🍱 WEEKLY SAVE DEBUG CHECK
+
+If weekly save fails, collect logs beginning with:
+
+[WeeklySave]
+[MealProvider.getMealsForWeek]
+[MealProvider.addPlannedMeal]URGENT BUG FIX. Plan first, do not edit yet.
+
+Active app folder:
+C:\Users\wapak\Downloads\nutrimind-main\nutrimind-main\nutrimind
+
+Current issues:
+1. Meal Log / Home meal action shows:
+   “Could not log meal. Please try again.”
+2. Community comment action shows:
+   “Could not add comment. Please try again.”
+3. Home and Meal Log should be connected:
+   - If a meal is saved/planned/logged in Meal Log for today, it should appear/update on Home.
+   - Home should not use disconnected dummy data if real logged/planned meals exist.
+
+Rules:
+- Do not redesign UI.
+- Do not change auth/routing.
+- Do not change Meal Planner generation.
+- Do not change Firebase rules unless proven required.
+- Inspect first.
+- No assumptions.
+- Focus only on:
+  a. log meal failure
+  b. add comment failure
+  c. Home ↔ Meal Log data connection
+- Ask approval before implementation.
+
+Inspect:
+1. lib/screens/main/home_screen.dart
+2. lib/screens/main/meal_plan_screen.dart
+3. lib/providers/meal_provider.dart
+4. lib/models/meal_model.dart
+5. lib/services/firestore_service.dart
+6. lib/screens/main/community_screen.dart
+7. lib/screens/main/post_detail_screen.dart
+8. lib/providers/community_provider.dart
+9. firestore.rules
+
+Find:
+A. For “Could not log meal”
+- Which function triggers the snackbar
+- Whether FirestoreService.logMeal() fails
+- Whether mealProvider.error is stale or real
+- Whether mealId/userId/date/status is invalid
+- Whether Firestore rules block the update
+- Whether Home and Meal Log read from the same provider/source
+
+B. For “Could not add comment”
+- Which function triggers the snackbar
+- Whether comment creation fails due to rules
+- Whether required fields are missing
+- Whether postId/userId/comment text is invalid
+- Whether comment count update is blocked by rules
+
+C. For Home ↔ Meal Log connection
+- Does Home read MealProvider.meals or a separate stream?
+- Does Home load today’s meals from the same selected user/date?
+- Does logging a meal update Home immediately?
+- If not, what is the smallest safe way to connect them?
+
+Output:
+1. Root cause for log meal failure
+2. Root cause for add comment failure
+3. Root cause for Home/Meal Log disconnect
+4. Exact files and line numbers
+5. Smallest safe fix plan
+6. Ask approval before implementation
+
+Report:
+
+last successful stage
+first failed stage
+exact error message
+📱 RESPONSIVENESS TEST
+
+Test Android/iOS-like sizes:
+
+320px width
+360px width
+390px width
+large phone width
+
+Check:
+
+no overflow warning
+no clipped text
+no bottom nav overlap
+dialogs are scroll-safe
+keyboard does not cover forms
+buttons are aligned
+cards have clean padding
+
+So your `TESTING_AGENT.md` is good, but add those because your current biggest risks are:
+
+```text id="phmlrl"
+1. Wrong folder
+2. Firestore web listener crash
+3. Weekly save failure
+4. Small-phone UI overflow

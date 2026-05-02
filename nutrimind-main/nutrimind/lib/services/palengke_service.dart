@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 
 import '../models/meal_model.dart';
 import '../models/palengke_item_model.dart';
@@ -54,7 +55,7 @@ class PalengkeService {
         fallbackSourceType: 'market_prices',
       );
     } catch (error) {
-      _marketConfigError = error.toString();
+      _marketConfigError = _friendlyFailure(error);
       _ingredientConfigByName.clear();
       _configAliasLookup.clear();
     }
@@ -76,8 +77,16 @@ class PalengkeService {
           uid: uid,
           weekId: weekId,
         );
-      } catch (error) {
-        _persistenceError = error.toString();
+      } catch (error, stackTrace) {
+        _persistenceError = _friendlyFailure(error);
+        _logFirestoreFailure(
+          operation: 'savedWeeklyList.read',
+          uid: uid,
+          weekId: weekId,
+          path: _weeklyListItemsPath(uid, weekId),
+          error: error,
+          stackTrace: stackTrace,
+        );
       }
     }
 
@@ -94,8 +103,16 @@ class PalengkeService {
           weekStart: weekStart,
           weekEnd: weekEnd,
         );
-      } catch (error) {
-        _persistenceError = error.toString();
+      } catch (error, stackTrace) {
+        _persistenceError = _friendlyFailure(error);
+        _logFirestoreFailure(
+          operation: 'weeklyList.persist',
+          uid: uid,
+          weekId: weekId,
+          path: _weeklyListPath(uid, weekId),
+          error: error,
+          stackTrace: stackTrace,
+        );
       }
     }
 
@@ -148,9 +165,8 @@ class PalengkeService {
         isBought: boughtState[id] ?? false,
         sourceMealIds: entry.value.toList()..sort(),
         createdAt: createdState[id] ?? DateTime.now(),
-        priceSource: hasConfiguredPrice
-            ? config.source
-            : 'NutriMind Palengke estimate',
+        priceSource:
+            hasConfiguredPrice ? config.source : 'NutriMind Palengke estimate',
         priceSourceType:
             hasConfiguredPrice ? config.sourceType : 'prototype_estimate',
         lastVerifiedDate: hasConfiguredPrice ? config.lastVerifiedDate : null,
@@ -265,7 +281,20 @@ class PalengkeService {
     required String collectionName,
     required String fallbackSourceType,
   }) async {
-    final snapshot = await _db.collection(collectionName).limit(300).get();
+    QuerySnapshot<Map<String, dynamic>> snapshot;
+    try {
+      snapshot = await _db.collection(collectionName).limit(300).get();
+    } catch (error, stackTrace) {
+      _logFirestoreFailure(
+        operation: 'marketConfig.read',
+        uid: 'n/a',
+        weekId: 'n/a',
+        path: collectionName,
+        error: error,
+        stackTrace: stackTrace,
+      );
+      rethrow;
+    }
     for (final doc in snapshot.docs) {
       final data = doc.data();
       if (data['isActive'] == false) continue;
@@ -343,43 +372,67 @@ class PalengkeService {
     String itemId,
     bool isBought,
   ) async {
-    await _weeklyListItems(uid, weekId).doc(itemId).set(
-      {
-        'isBought': isBought,
-        'updatedAt': FieldValue.serverTimestamp(),
-      },
-      SetOptions(merge: true),
-    );
-    await _weeklyListDoc(uid, weekId).set(
-      {
-        'boughtCount': _items.where((item) => item.isBought).length,
-        'updatedAt': FieldValue.serverTimestamp(),
-      },
-      SetOptions(merge: true),
-    );
-  }
-
-  Future<void> _persistAllBoughtStates(String uid, String weekId) async {
-    final batch = _db.batch();
-    for (final item in _items) {
-      batch.set(
-        _weeklyListItems(uid, weekId).doc(item.id),
+    try {
+      await _weeklyListItems(uid, weekId).doc(itemId).set(
         {
-          'isBought': item.isBought,
+          'isBought': isBought,
           'updatedAt': FieldValue.serverTimestamp(),
         },
         SetOptions(merge: true),
       );
+      await _weeklyListDoc(uid, weekId).set(
+        {
+          'boughtCount': _items.where((item) => item.isBought).length,
+          'updatedAt': FieldValue.serverTimestamp(),
+        },
+        SetOptions(merge: true),
+      );
+    } catch (error, stackTrace) {
+      _logFirestoreFailure(
+        operation: 'weeklyList.itemPersist',
+        uid: uid,
+        weekId: weekId,
+        path: '${_weeklyListItemsPath(uid, weekId)}/$itemId',
+        error: error,
+        stackTrace: stackTrace,
+      );
+      rethrow;
     }
-    batch.set(
-      _weeklyListDoc(uid, weekId),
-      {
-        'boughtCount': _items.where((item) => item.isBought).length,
-        'updatedAt': FieldValue.serverTimestamp(),
-      },
-      SetOptions(merge: true),
-    );
-    await batch.commit();
+  }
+
+  Future<void> _persistAllBoughtStates(String uid, String weekId) async {
+    try {
+      final batch = _db.batch();
+      for (final item in _items) {
+        batch.set(
+          _weeklyListItems(uid, weekId).doc(item.id),
+          {
+            'isBought': item.isBought,
+            'updatedAt': FieldValue.serverTimestamp(),
+          },
+          SetOptions(merge: true),
+        );
+      }
+      batch.set(
+        _weeklyListDoc(uid, weekId),
+        {
+          'boughtCount': _items.where((item) => item.isBought).length,
+          'updatedAt': FieldValue.serverTimestamp(),
+        },
+        SetOptions(merge: true),
+      );
+      await batch.commit();
+    } catch (error, stackTrace) {
+      _logFirestoreFailure(
+        operation: 'weeklyList.bulkPersist',
+        uid: uid,
+        weekId: weekId,
+        path: _weeklyListPath(uid, weekId),
+        error: error,
+        stackTrace: stackTrace,
+      );
+      rethrow;
+    }
   }
 
   DocumentReference<Map<String, dynamic>> _weeklyListDoc(
@@ -398,6 +451,41 @@ class PalengkeService {
     String weekId,
   ) {
     return _weeklyListDoc(uid, weekId).collection('items');
+  }
+
+  String _weeklyListPath(String uid, String weekId) =>
+      'users/$uid/weekly_palengke_lists/$weekId';
+
+  String _weeklyListItemsPath(String uid, String weekId) =>
+      '${_weeklyListPath(uid, weekId)}/items';
+
+  String _friendlyFailure(Object error) {
+    if (error is FirebaseException) {
+      return error.message?.trim().isNotEmpty == true
+          ? error.message!.trim()
+          : error.code;
+    }
+    return error.toString();
+  }
+
+  void _logFirestoreFailure({
+    required String operation,
+    required String uid,
+    required String weekId,
+    required String path,
+    required Object error,
+    StackTrace? stackTrace,
+  }) {
+    final code = error is FirebaseException ? error.code : 'n/a';
+    final message = error is FirebaseException ? error.message : null;
+    debugPrint(
+      '[Palengke] operation=$operation uid=$uid weekId=$weekId '
+      'path=$path code=$code message=${message ?? error}',
+    );
+    if (stackTrace != null) {
+      debugPrintStack(
+          label: '[Palengke] $operation stack', stackTrace: stackTrace);
+    }
   }
 
   String _itemId(String normalizedName) {

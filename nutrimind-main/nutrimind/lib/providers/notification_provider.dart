@@ -13,6 +13,9 @@ class NotificationProvider extends ChangeNotifier {
   StreamSubscription<int>? _unreadCountSubscription;
 
   String? _uid;
+  int _notificationsGeneration = 0;
+  int _unreadCountGeneration = 0;
+  bool _disposed = false;
   List<NotificationModel> _notifications = [];
   int _unreadCount = 0;
   bool _loading = false;
@@ -24,17 +27,13 @@ class NotificationProvider extends ChangeNotifier {
   String? get error => _error;
 
   void setUser(String? uid) {
-    if (_uid == uid) return;
-    _notificationsSubscription?.cancel();
-    _unreadCountSubscription?.cancel();
-    _uid = uid;
+    final nextUid = uid?.trim();
+    if (_uid == nextUid) return;
+    _cancelActiveStreams();
+    _uid = nextUid;
 
-    if (uid == null || uid.isEmpty) {
-      _notifications = [];
-      _unreadCount = 0;
-      _loading = false;
-      _error = null;
-      notifyListeners();
+    if (nextUid == null || nextUid.isEmpty) {
+      _clearLocalState();
       return;
     }
 
@@ -42,11 +41,26 @@ class NotificationProvider extends ChangeNotifier {
     listenToUnreadNotificationCount();
   }
 
+  void clearUserScopedState() {
+    if (_uid == null &&
+        _notifications.isEmpty &&
+        _unreadCount == 0 &&
+        !_loading &&
+        _error == null) {
+      _cancelActiveStreams();
+      return;
+    }
+    _cancelActiveStreams();
+    _uid = null;
+    _clearLocalState();
+  }
+
   void listenToNotifications({String? uid}) {
-    if (uid != null) _uid = uid;
+    if (uid != null) _uid = uid.trim();
     final currentUid = _uid;
     if (currentUid == null || currentUid.isEmpty) return;
 
+    final generation = ++_notificationsGeneration;
     _notificationsSubscription?.cancel();
     _loading = true;
     _error = null;
@@ -55,12 +69,22 @@ class NotificationProvider extends ChangeNotifier {
     _notificationsSubscription =
         _firestoreService.notificationsStream(currentUid).listen(
       (notifications) {
+        if (_disposed ||
+            generation != _notificationsGeneration ||
+            _uid != currentUid) {
+          return;
+        }
         _notifications = notifications;
         _loading = false;
         _error = null;
         notifyListeners();
       },
       onError: (Object error) {
+        if (_disposed ||
+            generation != _notificationsGeneration ||
+            _uid != currentUid) {
+          return;
+        }
         _notifications = [];
         _loading = false;
         _error = 'Could not load notifications. Please try again.';
@@ -70,18 +94,29 @@ class NotificationProvider extends ChangeNotifier {
   }
 
   void listenToUnreadNotificationCount({String? uid}) {
-    if (uid != null) _uid = uid;
+    if (uid != null) _uid = uid.trim();
     final currentUid = _uid;
     if (currentUid == null || currentUid.isEmpty) return;
 
+    final generation = ++_unreadCountGeneration;
     _unreadCountSubscription?.cancel();
     _unreadCountSubscription =
         _firestoreService.unreadNotificationCountStream(currentUid).listen(
       (count) {
+        if (_disposed ||
+            generation != _unreadCountGeneration ||
+            _uid != currentUid) {
+          return;
+        }
         _unreadCount = count;
         notifyListeners();
       },
       onError: (Object error) {
+        if (_disposed ||
+            generation != _unreadCountGeneration ||
+            _uid != currentUid) {
+          return;
+        }
         _unreadCount = 0;
         notifyListeners();
       },
@@ -234,9 +269,26 @@ class NotificationProvider extends ChangeNotifier {
 
   @override
   void dispose() {
-    _notificationsSubscription?.cancel();
-    _unreadCountSubscription?.cancel();
+    _disposed = true;
+    _cancelActiveStreams();
     super.dispose();
+  }
+
+  void _cancelActiveStreams() {
+    _notificationsGeneration++;
+    _unreadCountGeneration++;
+    unawaited(_notificationsSubscription?.cancel());
+    unawaited(_unreadCountSubscription?.cancel());
+    _notificationsSubscription = null;
+    _unreadCountSubscription = null;
+  }
+
+  void _clearLocalState() {
+    _notifications = [];
+    _unreadCount = 0;
+    _loading = false;
+    _error = null;
+    notifyListeners();
   }
 
   DateTime _dateOnly(DateTime value) {

@@ -13,6 +13,9 @@ class CommunityProvider extends ChangeNotifier {
   final EngagementService _engagementService = EngagementService();
 
   StreamSubscription<List<PostModel>>? _postsSubscription;
+  String? _subscribedCategory;
+  int _postsStreamGeneration = 0;
+  bool _disposed = false;
 
   List<PostModel> _posts = [];
   bool _loading = false;
@@ -27,21 +30,45 @@ class CommunityProvider extends ChangeNotifier {
   bool get isAddingComment => _isAddingComment;
 
   void listenToPosts(String category) {
+    final nextCategory = category.trim().isEmpty ? 'Trending' : category;
+    if ((_postsSubscription != null || _loading) &&
+        _subscribedCategory == nextCategory &&
+        (_loading || _error == null)) {
+      _activeCategory = nextCategory;
+      return;
+    }
+    unawaited(_subscribeToPosts(nextCategory));
+  }
+
+  Future<void> _subscribeToPosts(String category) async {
+    final generation = ++_postsStreamGeneration;
+    final previousSubscription = _postsSubscription;
+    _postsSubscription = null;
     _activeCategory = category;
+    _subscribedCategory = category;
     _loading = true;
     _posts = [];
     _error = null;
     notifyListeners();
-    _postsSubscription?.cancel();
+
+    await previousSubscription?.cancel();
+    if (_disposed || generation != _postsStreamGeneration) return;
+
     _postsSubscription =
         _firestoreService.postsStream(category: category).listen((posts) {
+      if (_disposed || generation != _postsStreamGeneration) return;
       _posts = posts;
       _loading = false;
       _error = null;
       notifyListeners();
     }, onError: (Object error) {
+      if (_disposed || generation != _postsStreamGeneration) return;
+      debugPrint(
+        '[Community] posts listener failed category=$category error=$error',
+      );
       _posts = [];
       _loading = false;
+      _subscribedCategory = null;
       _error = 'Could not load community posts. Please try again.';
       notifyListeners();
     });
@@ -49,8 +76,24 @@ class CommunityProvider extends ChangeNotifier {
 
   @override
   void dispose() {
+    _disposed = true;
+    _postsStreamGeneration++;
     _postsSubscription?.cancel();
     super.dispose();
+  }
+
+  void clearAuthScopedState() {
+    final previousSubscription = _postsSubscription;
+    _postsSubscription = null;
+    _subscribedCategory = null;
+    _postsStreamGeneration++;
+    unawaited(previousSubscription?.cancel());
+    _posts = [];
+    _loading = false;
+    _error = null;
+    _activeCategory = 'Trending';
+    _isAddingComment = false;
+    notifyListeners();
   }
 
   Future<bool> createPost({
@@ -114,8 +157,7 @@ class CommunityProvider extends ChangeNotifier {
     final post = idx == -1 ? targetPost : _posts[idx];
 
     // Query Firestore for the actual like state (source of truth)
-    final currentlyLiked =
-        await _firestoreService.isPostLikedBy(postId, uid);
+    final currentlyLiked = await _firestoreService.isPostLikedBy(postId, uid);
 
     // Optimistic UI update
     final newLikeCount =

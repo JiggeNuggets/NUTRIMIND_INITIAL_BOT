@@ -5,7 +5,6 @@ import '../../models/nutribot_models.dart';
 import '../../theme/modern_app_theme.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/meal_provider.dart';
-import '../../providers/community_provider.dart';
 import '../../providers/notification_provider.dart';
 import '../../widgets/nutribot/nutribot_launcher.dart';
 import 'home_screen.dart';
@@ -32,19 +31,10 @@ class _MainShellState extends State<MainShell> {
       final uid = context.read<AuthProvider>().userModel?.uid;
       if (uid != null && uid.isNotEmpty) {
         context.read<MealProvider>().listenToMeals(uid);
-        context.read<CommunityProvider>().listenToPosts('Trending');
         context.read<NotificationProvider>().setUser(uid);
       }
     });
   }
-
-  // 4 persistent tabs plus a center Scan action.
-  final List<Widget> _screens = const [
-    HomeScreen(), // Home/Dashboard
-    MealPlanScreen(), // Log (Meal Plan + Recipe/Steps)
-    CommunityScreen(), // Community
-    ProfileScreen(), // Profile (with BMI)
-  ];
 
   final List<String> _screenTitles = [
     'Home',
@@ -70,20 +60,30 @@ class _MainShellState extends State<MainShell> {
   @override
   Widget build(BuildContext context) {
     final nutribotContext = _currentNutribotContext(context);
+    final screens = [
+      HomeScreen(
+        onOpenMealLog: () => setState(() => _currentIndex = 1),
+      ),
+      const MealPlanScreen(),
+      const CommunityScreen(),
+      const ProfileScreen(),
+    ];
 
     return Scaffold(
-      extendBody: true,
+      extendBody: false,
       body: IndexedStack(
         index: _currentIndex,
-        children: _screens,
+        children: screens,
       ),
-      bottomNavigationBar: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-        child: SafeArea(
-          top: false,
+      bottomNavigationBar: SafeArea(
+        top: false,
+        maintainBottomViewPadding: true,
+        minimum: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+        child: Padding(
+          padding: const EdgeInsets.only(top: 4),
           child: Container(
-            height: 74,
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+            height: 68,
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
             decoration: BoxDecoration(
               color: ModernAppTheme.white.withValues(alpha: 0.96),
               borderRadius: BorderRadius.circular(26),

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
@@ -16,8 +18,30 @@ import '../../widgets/state_views.dart';
 import 'ai_meal_planner_screen.dart';
 import 'scan_options_screen.dart';
 
+enum _HomeLogChoice { quick, manual }
+
 class HomeScreen extends StatelessWidget {
-  const HomeScreen({super.key});
+  const HomeScreen({super.key, this.onOpenMealLog});
+
+  final VoidCallback? onOpenMealLog;
+
+  static final Future<_LocalFoodCard?> _localFoodSpotlightFuture =
+      _loadLocalFoodSpotlight();
+
+  static Future<_LocalFoodCard?> _loadLocalFoodSpotlight() async {
+    try {
+      final snapshot = await FirebaseFirestore.instance
+          .collection('local_foods')
+          .limit(1)
+          .get()
+          .timeout(const Duration(seconds: 8));
+      if (snapshot.docs.isEmpty) return null;
+      return _LocalFoodCard.fromDoc(snapshot.docs.first);
+    } catch (e) {
+      debugPrint('Local food spotlight load failed: $e');
+      return null;
+    }
+  }
 
   // Mifflin-St Jeor BMR — used only for calorie ring display.
   static int _estimateBmr(UserModel? user) {
@@ -27,10 +51,32 @@ class HomeScreen extends StatelessWidget {
     return bmr.round().clamp(1000, 5000);
   }
 
+  static bool _isSameDay(DateTime a, DateTime b) =>
+      a.year == b.year && a.month == b.month && a.day == b.day;
+
+  void _ensureHomeShowsToday(
+    BuildContext context,
+    MealProvider mealProv,
+    String uid,
+  ) {
+    if (uid.isEmpty || _isSameDay(mealProv.selectedDate, DateTime.now())) {
+      return;
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!context.mounted) return;
+      final provider = context.read<MealProvider>();
+      if (!_isSameDay(provider.selectedDate, DateTime.now())) {
+        unawaited(provider.selectDate(uid, DateTime.now()));
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final user = context.watch<AuthProvider>().userModel;
     final mealProv = context.watch<MealProvider>();
+    final uid = user?.uid ?? '';
+    _ensureHomeShowsToday(context, mealProv, uid);
     final budget = user?.dailyBudget ?? 150;
     final spent = mealProv.totalSpent;
     final budgetPct = (spent / budget).clamp(0.0, 1.0);
@@ -60,34 +106,40 @@ class HomeScreen extends StatelessWidget {
                 pinned: false,
                 floating: true,
                 toolbarHeight: 64,
-                flexibleSpace: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 32,
-                        height: 32,
-                        decoration: BoxDecoration(
-                          gradient: ModernAppTheme.gradientPrimary,
-                          borderRadius:
-                              BorderRadius.circular(ModernAppTheme.radiusSm),
-                          boxShadow: ModernAppTheme.shadowSm,
-                        ),
-                        child: const Icon(Icons.eco,
-                            color: Colors.white, size: 18),
+                flexibleSpace: SafeArea(
+                  bottom: false,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                    child: SizedBox(
+                      height: 48,
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 32,
+                            height: 32,
+                            decoration: BoxDecoration(
+                              gradient: ModernAppTheme.gradientPrimary,
+                              borderRadius: BorderRadius.circular(
+                                  ModernAppTheme.radiusSm),
+                              boxShadow: ModernAppTheme.shadowSm,
+                            ),
+                            child: const Icon(Icons.eco,
+                                color: Colors.white, size: 18),
+                          ),
+                          const SizedBox(width: 8),
+                          const Text(
+                            'NutriMind',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 17,
+                              color: AppTheme.textDark,
+                            ),
+                          ),
+                          const Spacer(),
+                          const NotificationBell(boxed: true),
+                        ],
                       ),
-                      const SizedBox(width: 8),
-                      const Text(
-                        'NutriMind',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w700,
-                          fontSize: 17,
-                          color: AppTheme.textDark,
-                        ),
-                      ),
-                      const Spacer(),
-                      const NotificationBell(boxed: true),
-                    ],
+                    ),
                   ),
                 ),
               ),
@@ -123,7 +175,7 @@ class HomeScreen extends StatelessWidget {
                     const SizedBox(height: 20),
 
                     // ── Today's Meals ──────────────────────────────────────
-                    _buildTodaysMeals(context, mealProv, user?.uid ?? ''),
+                    _buildTodaysMeals(context, mealProv, uid),
                     const SizedBox(height: 16),
 
                     // ── Bottom two-column cards ────────────────────────────
@@ -215,146 +267,182 @@ class HomeScreen extends StatelessWidget {
     int? carbs,
     int? fat,
   }) {
-    final remaining = (budget - spent).clamp(0, budget);
+    final remaining = (budget - spent).clamp(0.0, budget);
 
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [ModernAppTheme.darkGreen, ModernAppTheme.primaryGreen],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(ModernAppTheme.radiusXl),
-        boxShadow: [
-          BoxShadow(
-            color: ModernAppTheme.primaryGreen.withValues(alpha: 0.3),
-            blurRadius: 20,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Label
-          const Row(children: [
-            Icon(Icons.today_outlined, color: Colors.white70, size: 13),
-            SizedBox(width: 6),
-            Text(
-              "TODAY'S PLAN",
-              style: TextStyle(
-                color: Colors.white70,
-                fontSize: 10,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 1.2,
-              ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 340;
+        return Container(
+          padding: EdgeInsets.all(compact ? 16 : 20),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [ModernAppTheme.darkGreen, ModernAppTheme.primaryGreen],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
             ),
-          ]),
-          const SizedBox(height: 16),
-
-          // Calorie ring + 3 stats
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
+            borderRadius: BorderRadius.circular(ModernAppTheme.radiusXl),
+            boxShadow: [
+              BoxShadow(
+                color: ModernAppTheme.primaryGreen.withValues(alpha: 0.3),
+                blurRadius: 20,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Circular calorie ring
-              _buildCalorieRing(cal, calorieGoal, caloriePct),
-              const SizedBox(width: 16),
-
-              // 3 stat columns
-              Expanded(
-                child: Row(
+              const Row(children: [
+                Icon(Icons.today_outlined, color: Colors.white70, size: 13),
+                SizedBox(width: 6),
+                Text(
+                  "TODAY'S PLAN",
+                  style: TextStyle(
+                    color: Colors.white70,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 1.2,
+                  ),
+                ),
+              ]),
+              const SizedBox(height: 16),
+              if (compact) ...[
+                Center(
+                  child: _buildCalorieRing(
+                    cal,
+                    calorieGoal,
+                    caloriePct,
+                    size: 82,
+                  ),
+                ),
+                const SizedBox(height: 14),
+                _buildPlanStatsRow(
+                  spent: spent,
+                  budget: budget,
+                  loggedCount: loggedCount,
+                  remaining: remaining,
+                  dividerMargin: 2,
+                ),
+              ] else
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
+                    _buildCalorieRing(cal, calorieGoal, caloriePct),
+                    const SizedBox(width: 16),
                     Expanded(
-                      child: _planStat(
-                        '₱${spent.toStringAsFixed(0)}',
-                        'of ₱${budget.toStringAsFixed(0)}',
-                        'budget used',
-                      ),
-                    ),
-                    _vDivider(),
-                    Expanded(
-                      child: _planStat(
-                        '$loggedCount/4',
-                        'meals',
-                        'logged',
-                      ),
-                    ),
-                    _vDivider(),
-                    Expanded(
-                      child: _planStat(
-                        '₱${remaining.toStringAsFixed(0)}',
-                        'remaining',
-                        'budget',
+                      child: _buildPlanStatsRow(
+                        spent: spent,
+                        budget: budget,
+                        loggedCount: loggedCount,
+                        remaining: remaining,
                       ),
                     ),
                   ],
                 ),
+              const SizedBox(height: 16),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(6),
+                child: LinearProgressIndicator(
+                  value: budgetPct,
+                  backgroundColor: Colors.white.withValues(alpha: 0.2),
+                  valueColor: AlwaysStoppedAnimation(
+                    budgetPct > 0.85 ? ModernAppTheme.warning : Colors.white,
+                  ),
+                  minHeight: 8,
+                ),
               ),
+              if (protein != null && carbs != null && fat != null) ...[
+                const SizedBox(height: 14),
+                Container(
+                  padding: EdgeInsets.symmetric(
+                    vertical: 10,
+                    horizontal: compact ? 10 : 14,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: _macroItem(
+                            Icons.fitness_center, '${protein}g', 'Protein'),
+                      ),
+                      _vDivider(horizontalMargin: compact ? 2 : 4),
+                      Expanded(
+                        child: _macroItem(Icons.grain, '${carbs}g', 'Carbs'),
+                      ),
+                      _vDivider(horizontalMargin: compact ? 2 : 4),
+                      Expanded(
+                        child: _macroItem(Icons.water_drop, '${fat}g', 'Fat'),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ],
           ),
-          const SizedBox(height: 16),
-
-          // Budget progress bar
-          ClipRRect(
-            borderRadius: BorderRadius.circular(6),
-            child: LinearProgressIndicator(
-              value: budgetPct,
-              backgroundColor: Colors.white.withValues(alpha: 0.2),
-              valueColor: AlwaysStoppedAnimation(
-                budgetPct > 0.85 ? ModernAppTheme.warning : Colors.white,
-              ),
-              minHeight: 8,
-            ),
-          ),
-
-          // Macros strip — only when real logged data has macros
-          if (protein != null && carbs != null && fat != null) ...[
-            const SizedBox(height: 14),
-            Container(
-              padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 14),
-              decoration: BoxDecoration(
-                color: Colors.black.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: _macroItem(
-                        Icons.fitness_center, '${protein}g', 'Protein'),
-                  ),
-                  _vDivider(),
-                  Expanded(
-                    child: _macroItem(Icons.grain, '${carbs}g', 'Carbs'),
-                  ),
-                  _vDivider(),
-                  Expanded(
-                    child: _macroItem(Icons.water_drop, '${fat}g', 'Fat'),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ],
-      ),
+        );
+      },
     );
   }
 
-  Widget _buildCalorieRing(int cal, int calorieGoal, double caloriePct) {
+  Widget _buildPlanStatsRow({
+    required double spent,
+    required double budget,
+    required int loggedCount,
+    required num remaining,
+    double dividerMargin = 4,
+  }) {
+    return Row(
+      children: [
+        Expanded(
+          child: _planStat(
+            '₱${spent.toStringAsFixed(0)}',
+            'of ₱${budget.toStringAsFixed(0)}',
+            'budget used',
+          ),
+        ),
+        _vDivider(horizontalMargin: dividerMargin),
+        Expanded(
+          child: _planStat(
+            '$loggedCount/4',
+            'meals',
+            'logged',
+          ),
+        ),
+        _vDivider(horizontalMargin: dividerMargin),
+        Expanded(
+          child: _planStat(
+            '₱${remaining.toStringAsFixed(0)}',
+            'remaining',
+            'budget',
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCalorieRing(
+    int cal,
+    int calorieGoal,
+    double caloriePct, {
+    double size = 90,
+  }) {
     return SizedBox(
-      width: 90,
-      height: 90,
+      width: size,
+      height: size,
       child: Stack(
         alignment: Alignment.center,
         children: [
           SizedBox(
-            width: 90,
-            height: 90,
+            width: size,
+            height: size,
             child: CircularProgressIndicator(
               value: caloriePct,
               backgroundColor: Colors.white.withValues(alpha: 0.2),
               valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
-              strokeWidth: 7,
+              strokeWidth: size < 90 ? 6 : 7,
               strokeCap: StrokeCap.round,
             ),
           ),
@@ -417,12 +505,12 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  Widget _vDivider() {
+  Widget _vDivider({double horizontalMargin = 4}) {
     return Container(
       width: 1,
       height: 32,
       color: Colors.white.withValues(alpha: 0.25),
-      margin: const EdgeInsets.symmetric(horizontal: 4),
+      margin: EdgeInsets.symmetric(horizontal: horizontalMargin),
     );
   }
 
@@ -510,65 +598,77 @@ class HomeScreen extends StatelessWidget {
       ),
     ];
 
-    return Row(
-      children: actions.asMap().entries.map((entry) {
-        final i = entry.key;
-        final a = entry.value;
-        return Expanded(
-          child: Padding(
-            padding: EdgeInsets.only(right: i < actions.length - 1 ? 10 : 0),
-            child: InkWell(
-              onTap: a.onTap,
-              borderRadius: BorderRadius.circular(ModernAppTheme.radiusLg),
-              child: Ink(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: ModernAppTheme.white,
-                  borderRadius: BorderRadius.circular(ModernAppTheme.radiusLg),
-                  border: Border.all(color: ModernAppTheme.divider),
-                  boxShadow: ModernAppTheme.shadowSm,
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      width: 36,
-                      height: 36,
-                      decoration: BoxDecoration(
-                        color: a.bgColor,
-                        borderRadius: BorderRadius.circular(10),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        const spacing = 10.0;
+        final columns = constraints.maxWidth < 330
+            ? 1
+            : constraints.maxWidth < 430
+                ? 2
+                : 3;
+        final cardWidth =
+            (constraints.maxWidth - spacing * (columns - 1)) / columns;
+
+        return Wrap(
+          spacing: spacing,
+          runSpacing: spacing,
+          children: actions.map((a) {
+            return SizedBox(
+              width: cardWidth,
+              child: InkWell(
+                onTap: a.onTap,
+                borderRadius: BorderRadius.circular(ModernAppTheme.radiusLg),
+                child: Ink(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: ModernAppTheme.white,
+                    borderRadius:
+                        BorderRadius.circular(ModernAppTheme.radiusLg),
+                    border: Border.all(color: ModernAppTheme.divider),
+                    boxShadow: ModernAppTheme.shadowSm,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        width: 36,
+                        height: 36,
+                        decoration: BoxDecoration(
+                          color: a.bgColor,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Icon(a.icon, color: a.iconColor, size: 19),
                       ),
-                      child: Icon(a.icon, color: a.iconColor, size: 19),
-                    ),
-                    const SizedBox(height: 10),
-                    Text(
-                      a.label,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: ModernAppTheme.textDark,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w800,
+                      const SizedBox(height: 10),
+                      Text(
+                        a.label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: ModernAppTheme.textDark,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      a.sub,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: ModernAppTheme.textLight,
-                        fontSize: 9,
-                        fontWeight: FontWeight.w500,
+                      const SizedBox(height: 2),
+                      Text(
+                        a.sub,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: ModernAppTheme.textLight,
+                          fontSize: 9,
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
-            ),
-          ),
+            );
+          }).toList(),
         );
-      }).toList(),
+      },
     );
   }
 
@@ -576,25 +676,32 @@ class HomeScreen extends StatelessWidget {
 
   Widget _buildTodaysMeals(
       BuildContext context, MealProvider mealProv, String uid) {
-    final meals = mealProv.meals;
+    final today = DateTime.now();
+    final waitingForToday =
+        uid.isNotEmpty && !_isSameDay(mealProv.selectedDate, today);
     final typeOrder = [
       MealType.breakfast,
       MealType.lunch,
       MealType.dinner,
       MealType.snack,
     ];
-    final todayMeals = <MealModel>[];
-    for (final type in typeOrder) {
-      final matches = meals.where((m) => m.type == type).toList();
-      if (matches.isNotEmpty) {
-        matches.sort(_mealPriority);
-        todayMeals.add(matches.first);
-      }
-    }
+    final todayMeals =
+        mealProv.meals.where((meal) => _isSameDay(meal.date, today)).toList()
+          ..sort((a, b) {
+            final typeCompare =
+                typeOrder.indexOf(a.type).compareTo(typeOrder.indexOf(b.type));
+            if (typeCompare != 0) {
+              return typeCompare;
+            }
+            return _mealPriority(a, b);
+          });
 
-    final showLoading = mealProv.loading && meals.isEmpty;
-    final showError =
-        mealProv.error != null && meals.isEmpty && !mealProv.loading;
+    final showLoading =
+        waitingForToday || (mealProv.loading && todayMeals.isEmpty);
+    final showError = mealProv.error != null &&
+        todayMeals.isEmpty &&
+        !mealProv.loading &&
+        !waitingForToday;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -611,7 +718,12 @@ class HomeScreen extends StatelessWidget {
               ),
             ),
             TextButton.icon(
-              onPressed: () {},
+              onPressed: onOpenMealLog ??
+                  () => Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => const AiMealPlannerScreen(),
+                        ),
+                      ),
               icon: const Text(
                 'View all',
                 style: TextStyle(
@@ -644,7 +756,9 @@ class HomeScreen extends StatelessWidget {
               message: mealProv.error,
               onRetry: uid.isEmpty
                   ? null
-                  : () => context.read<MealProvider>().listenToMeals(uid),
+                  : () => unawaited(context
+                      .read<MealProvider>()
+                      .selectDate(uid, DateTime.now())),
             ),
           )
         else
@@ -730,6 +844,25 @@ class HomeScreen extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(vertical: 13),
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => const AiMealPlannerScreen(),
+                ),
+              ),
+              icon: const Icon(Icons.auto_awesome, size: 16),
+              label: const Text('Generate Demo Meal Plan'),
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 13),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
               ),
             ),
           ),
@@ -896,7 +1029,7 @@ class HomeScreen extends StatelessWidget {
 
   Widget _logMealButton(BuildContext context, MealModel meal, String uid) {
     return GestureDetector(
-      onTap: () => _logMealFromHome(context, meal, uid),
+      onTap: () => _handleHomeLogTap(context, meal, uid),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
@@ -915,34 +1048,216 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  // ── 5. Bottom two-column cards ───────────────────────────────────────────────
+  Future<void> _handleHomeLogTap(
+    BuildContext context,
+    MealModel meal,
+    String uid,
+  ) async {
+    final choice = await _showHomeLogChoiceSheet(context);
+    if (!context.mounted || choice == null) return;
+    switch (choice) {
+      case _HomeLogChoice.quick:
+        await _logMealFromHome(context, meal, uid);
+        break;
+      case _HomeLogChoice.manual:
+        final calories = await _confirmHomeManualCalories(context, meal);
+        if (!context.mounted || calories == null) return;
+        await _logMealFromHome(context, meal, uid, calories: calories);
+        break;
+    }
+  }
 
-  Widget _buildBottomCards(BuildContext context) {
-    return IntrinsicHeight(
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Expanded(child: _buildLocalSpotlightCard()),
-          const SizedBox(width: 12),
-          Expanded(child: _buildNutriBotTipCard(context)),
-        ],
+  Future<_HomeLogChoice?> _showHomeLogChoiceSheet(BuildContext context) {
+    return showModalBottomSheet<_HomeLogChoice>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (sheetCtx) => SafeArea(
+        child: Container(
+          margin: const EdgeInsets.all(12),
+          padding: const EdgeInsets.fromLTRB(20, 18, 20, 22),
+          decoration: BoxDecoration(
+            color: AppTheme.white,
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: ModernAppTheme.shadowLg,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'How do you want to log this meal?',
+                style: TextStyle(
+                  color: AppTheme.textDark,
+                  fontSize: 17,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () =>
+                      Navigator.pop(sheetCtx, _HomeLogChoice.quick),
+                  icon: const Icon(Icons.check_circle_outline),
+                  label: const Text('Log as planned'),
+                  style: ElevatedButton.styleFrom(
+                    minimumSize: const Size(0, 50),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () =>
+                      Navigator.pop(sheetCtx, _HomeLogChoice.manual),
+                  icon: const Icon(Icons.edit_outlined,
+                      color: AppTheme.primaryGreen),
+                  label: const Text(
+                    'Manual calories',
+                    style: TextStyle(color: AppTheme.primaryGreen),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size(0, 50),
+                    side: const BorderSide(color: AppTheme.primaryGreen),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 6),
+              Center(
+                child: TextButton(
+                  onPressed: () => Navigator.pop(sheetCtx),
+                  child: const Text(
+                    'Cancel',
+                    style: TextStyle(color: AppTheme.textMid),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
 
+  Future<int?> _confirmHomeManualCalories(
+    BuildContext context,
+    MealModel meal,
+  ) async {
+    final controller = TextEditingController(
+      text: meal.calories > 0 ? meal.calories.toString() : '',
+    );
+    String? errorText;
+    final result = await showDialog<int>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (dialogCtx, setDialogState) => AlertDialog(
+          insetPadding:
+              const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: const Text(
+            'Manual Calories',
+            style: TextStyle(fontWeight: FontWeight.w800),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                meal.name,
+                style: const TextStyle(
+                  color: AppTheme.textDark,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 15,
+                ),
+              ),
+              const SizedBox(height: 14),
+              TextField(
+                controller: controller,
+                keyboardType: TextInputType.number,
+                decoration: InputDecoration(
+                  labelText: 'Calories',
+                  suffixText: 'kcal',
+                  errorText: errorText,
+                  border: const OutlineInputBorder(),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text(
+                'Cancel',
+                style: TextStyle(color: AppTheme.textMid),
+              ),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                final calories = int.tryParse(controller.text.trim());
+                if (calories == null || calories <= 0) {
+                  setDialogState(
+                      () => errorText = 'Enter calories greater than 0.');
+                  return;
+                }
+                Navigator.pop(dialogCtx, calories);
+              },
+              child: const Text('Log Meal'),
+            ),
+          ],
+        ),
+      ),
+    );
+    controller.dispose();
+    return result;
+  }
+
+  // ── 5. Bottom two-column cards ───────────────────────────────────────────────
+
+  Widget _buildBottomCards(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 400) {
+          return Column(
+            children: [
+              ConstrainedBox(
+                constraints: const BoxConstraints(minHeight: 172),
+                child: _buildLocalSpotlightCard(),
+              ),
+              const SizedBox(height: 12),
+              ConstrainedBox(
+                constraints: const BoxConstraints(minHeight: 172),
+                child: _buildNutriBotTipCard(context),
+              ),
+            ],
+          );
+        }
+
+        return IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(child: _buildLocalSpotlightCard()),
+              const SizedBox(width: 12),
+              Expanded(child: _buildNutriBotTipCard(context)),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   Widget _buildLocalSpotlightCard() {
-    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-      stream: FirebaseFirestore.instance
-          .collection('local_foods')
-          .limit(1)
-          .snapshots(),
+    return FutureBuilder<_LocalFoodCard?>(
+      future: _localFoodSpotlightFuture,
       builder: (context, snapshot) {
         String title = 'Local Food Spotlight';
         String body =
             'Davao fruits are rich in vitamins and perfect for your daily health.';
 
-        if (snapshot.hasData && snapshot.data!.docs.isNotEmpty) {
-          final food = _LocalFoodCard.fromDoc(snapshot.data!.docs.first);
+        final food = snapshot.data;
+        if (food != null) {
           if (food.isVisible && food.name.isNotEmpty) {
             body =
                 '${food.name} — ${food.tag}. ${food.priceLabel}. Great addition to your daily meals.';
@@ -998,17 +1313,20 @@ class HomeScreen extends StatelessWidget {
                 maxLines: 4,
                 overflow: TextOverflow.ellipsis,
               ),
-              const Spacer(),
-              const SizedBox(height: 10),
+              const SizedBox(height: 14),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text(
-                    'Explore local foods →',
-                    style: TextStyle(
-                      color: ModernAppTheme.primaryGreen,
-                      fontSize: 10,
-                      fontWeight: FontWeight.w700,
+                  const Expanded(
+                    child: Text(
+                      'Explore local foods →',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: ModernAppTheme.primaryGreen,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ),
                   Container(
@@ -1077,36 +1395,41 @@ class HomeScreen extends StatelessWidget {
               color: AppTheme.textMid,
               height: 1.5,
             ),
+            maxLines: 4,
+            overflow: TextOverflow.ellipsis,
           ),
-          const Spacer(),
-          const SizedBox(height: 10),
+          const SizedBox(height: 14),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              GestureDetector(
-                onTap: () {
-                  final user = context.read<AuthProvider>().userModel;
-                  final mp = context.read<MealProvider>();
-                  NutribotLauncher.open(
-                    context,
-                    nutribotContext: NutribotContext(
-                      source: NutribotSource.home,
-                      contextTitle: 'NutriBot',
-                      sourceContext: 'Home dashboard tip',
-                      userGoal: user?.goal,
-                      data: {
-                        if (user != null) 'dailyBudgetPhp': user.dailyBudget,
-                        'totalCalories': mp.totalCalories,
-                      },
+              Expanded(
+                child: GestureDetector(
+                  onTap: () {
+                    final user = context.read<AuthProvider>().userModel;
+                    final mp = context.read<MealProvider>();
+                    NutribotLauncher.open(
+                      context,
+                      nutribotContext: NutribotContext(
+                        source: NutribotSource.home,
+                        contextTitle: 'NutriBot',
+                        sourceContext: 'Home dashboard tip',
+                        userGoal: user?.goal,
+                        data: {
+                          if (user != null) 'dailyBudgetPhp': user.dailyBudget,
+                          'totalCalories': mp.totalCalories,
+                        },
+                      ),
+                    );
+                  },
+                  child: const Text(
+                    'Ask NutriBot →',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: ModernAppTheme.info,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
                     ),
-                  );
-                },
-                child: const Text(
-                  'Ask NutriBot →',
-                  style: TextStyle(
-                    color: ModernAppTheme.info,
-                    fontSize: 10,
-                    fontWeight: FontWeight.w700,
                   ),
                 ),
               ),
@@ -1132,8 +1455,9 @@ class HomeScreen extends StatelessWidget {
   Future<void> _logMealFromHome(
     BuildContext context,
     MealModel meal,
-    String uid,
-  ) async {
+    String uid, {
+    int? calories,
+  }) async {
     if (uid.isEmpty) return;
     final user = context.read<AuthProvider>().userModel;
     final mealProvider = context.read<MealProvider>();
@@ -1143,6 +1467,7 @@ class HomeScreen extends StatelessWidget {
       displayName: user?.name ?? '',
       photoUrl: user?.photoUrl,
       dailyBudget: user?.dailyBudget ?? 150,
+      calories: calories,
     );
     if (!context.mounted) return;
     if (mealProvider.error != null) {
@@ -1154,12 +1479,21 @@ class HomeScreen extends StatelessWidget {
       mealProvider.clearError();
       return;
     }
-    await context.read<NotificationProvider>().createBudgetWarningIfNeeded(
-          uid: uid,
-          meals: mealProvider.meals,
-          dailyBudget: user?.dailyBudget ?? 150,
-          date: mealProvider.selectedDate,
+    unawaited(
+      context
+          .read<NotificationProvider>()
+          .createBudgetWarningIfNeeded(
+            uid: uid,
+            meals: mealProvider.meals,
+            dailyBudget: user?.dailyBudget ?? 150,
+            date: mealProvider.selectedDate,
+          )
+          .catchError((Object error, StackTrace stackTrace) {
+        debugPrint(
+          '[MealOptional] Home budget warning failed: $error\n$stackTrace',
         );
+      }),
+    );
   }
 }
 

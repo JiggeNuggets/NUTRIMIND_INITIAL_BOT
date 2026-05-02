@@ -9,8 +9,8 @@ import '../../providers/meal_provider.dart';
 import '../../services/engagement_service.dart';
 import '../../widgets/safe_image.dart';
 import '../../widgets/state_views.dart';
-import '../onboarding/splash_screen.dart';
 import 'edit_profile_screen.dart';
+import 'progress_dashboard_screen.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
@@ -21,6 +21,8 @@ class ProfileScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final user = context.watch<AuthProvider>().userModel;
     final mealProv = context.watch<MealProvider>();
+    final compact = MediaQuery.of(context).size.width < 360;
+    final sectionGap = compact ? 18.0 : 24.0;
 
     return Scaffold(
       backgroundColor: ModernAppTheme.bgGreen,
@@ -36,119 +38,116 @@ class ProfileScreen extends StatelessWidget {
           ),
         ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Profile header
-            Row(
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 560),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Stack(
+                // Profile header
+                Row(
                   children: [
-                    SafeAvatar(
-                      radius: 38,
-                      photoUrl: user?.photoUrl,
-                      displayName: user?.name ?? 'U',
-                      textStyle: const TextStyle(
-                        color: AppTheme.primaryGreen,
-                        fontWeight: FontWeight.w800,
-                        fontSize: 28,
+                    Stack(
+                      children: [
+                        SafeAvatar(
+                          radius: 38,
+                          photoUrl: user?.photoUrl,
+                          displayName: user?.name ?? 'U',
+                          textStyle: const TextStyle(
+                            color: AppTheme.primaryGreen,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 28,
+                          ),
+                        ),
+                        if (user?.isPremium == true)
+                          Positioned(
+                            bottom: 0,
+                            right: 0,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 6, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: AppTheme.orangeAccent,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: const Text('PRO',
+                                  style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 8,
+                                      fontWeight: FontWeight.w800)),
+                            ),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(user?.name ?? 'Loading...',
+                              style: const TextStyle(
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.w800,
+                                  color: AppTheme.textDark)),
+                          Text(user?.email ?? '',
+                              style: const TextStyle(
+                                  fontSize: 12, color: AppTheme.textMid)),
+                          const SizedBox(height: 4),
+                          Text(
+                              'Health Enthusiast • ${user?.location ?? 'Davao City'}',
+                              style: const TextStyle(
+                                  fontSize: 11, color: AppTheme.textLight)),
+                        ],
                       ),
                     ),
-                    if (user?.isPremium == true)
-                      Positioned(
-                        bottom: 0,
-                        right: 0,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 6, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: AppTheme.orangeAccent,
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: const Text('PRO',
-                              style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 8,
-                                  fontWeight: FontWeight.w800)),
-                        ),
-                      ),
                   ],
                 ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(user?.name ?? 'Loading...',
-                          style: const TextStyle(
-                              fontSize: 22,
-                              fontWeight: FontWeight.w800,
-                              color: AppTheme.textDark)),
-                      Text(user?.email ?? '',
-                          style: const TextStyle(
-                              fontSize: 12, color: AppTheme.textMid)),
-                      const SizedBox(height: 4),
-                      Text(
-                          'Health Enthusiast • ${user?.location ?? 'Davao City'}',
-                          style: const TextStyle(
-                              fontSize: 11, color: AppTheme.textLight)),
-                    ],
+                const SizedBox(height: 16),
+
+                // Stats row
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        ModernAppTheme.white,
+                        ModernAppTheme.softGreen.withValues(alpha: 0.72),
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius:
+                        BorderRadius.circular(ModernAppTheme.radiusXl),
+                    border: Border.all(color: ModernAppTheme.divider),
+                    boxShadow: ModernAppTheme.shadowSm,
                   ),
+                  child: _buildStatsGrid(user, mealProv),
                 ),
+                SizedBox(height: sectionGap),
+
+                // BMI Card
+                _buildBMICard(user),
+                SizedBox(height: sectionGap),
+
+                // My Progress
+                _buildProgressCard(context),
+                SizedBox(height: sectionGap),
+
+                // Smart Planner Settings
+                _buildDSSSettings(context, user),
+                SizedBox(height: sectionGap),
+
+                // Milestones
+                _buildMilestones(user?.uid ?? ''),
+                SizedBox(height: sectionGap),
+
+                // Account menu
+                _buildAccountMenu(context),
               ],
             ),
-            const SizedBox(height: 16),
-
-            // Stats row
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    ModernAppTheme.white,
-                    ModernAppTheme.softGreen.withValues(alpha: 0.72),
-                  ],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.circular(ModernAppTheme.radiusXl),
-                border: Border.all(color: ModernAppTheme.divider),
-                boxShadow: ModernAppTheme.shadowSm,
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
-                children: [
-                  _statBox('${user?.weight.toStringAsFixed(1) ?? '--'} kg',
-                      'Weight'),
-                  _vDiv(),
-                  _statBox('${user?.height.toStringAsFixed(0) ?? '--'} cm',
-                      'Height'),
-                  _vDiv(),
-                  _statBox(_dailyBudgetLabel(user), 'Daily Budget'),
-                  _vDiv(),
-                  _statBox('${mealProv.loggedCount}', "Today's Logs"),
-                ],
-              ),
-            ),
-            const SizedBox(height: 24),
-
-            // BMI Card
-            _buildBMICard(user),
-            const SizedBox(height: 24),
-
-            // Smart Planner Settings
-            _buildDSSSettings(context, user),
-            const SizedBox(height: 24),
-
-            // Milestones
-            _buildMilestones(user?.uid ?? ''),
-            const SizedBox(height: 24),
-
-            // Account menu
-            _buildAccountMenu(context),
-          ],
+          ),
         ),
       ),
     );
@@ -157,15 +156,66 @@ class ProfileScreen extends StatelessWidget {
   Widget _statBox(String value, String label) {
     return Column(
       children: [
-        Text(value,
-            style: const TextStyle(
-                fontWeight: FontWeight.w800,
-                fontSize: 14,
-                color: AppTheme.primaryGreen)),
+        Text(
+          value,
+          textAlign: TextAlign.center,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(
+              fontWeight: FontWeight.w800,
+              fontSize: 14,
+              color: AppTheme.primaryGreen),
+        ),
         const SizedBox(height: 2),
-        Text(label,
-            style: const TextStyle(fontSize: 10, color: AppTheme.textMid)),
+        Text(
+          label,
+          textAlign: TextAlign.center,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(fontSize: 10, color: AppTheme.textMid),
+        ),
       ],
+    );
+  }
+
+  Widget _buildStatsGrid(dynamic user, MealProvider mealProv) {
+    final stats = [
+      (
+        value: '${user?.weight.toStringAsFixed(1) ?? '--'} kg',
+        label: 'Weight',
+      ),
+      (
+        value: '${user?.height.toStringAsFixed(0) ?? '--'} cm',
+        label: 'Height',
+      ),
+      (
+        value: _dailyBudgetLabel(user),
+        label: 'Daily Budget',
+      ),
+      (
+        value: '${mealProv.loggedCount}',
+        label: "Today's Logs",
+      ),
+    ];
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        const spacing = 12.0;
+        final columns = constraints.maxWidth < 360 ? 2 : 4;
+        final itemWidth =
+            (constraints.maxWidth - spacing * (columns - 1)) / columns;
+
+        return Wrap(
+          spacing: spacing,
+          runSpacing: spacing,
+          children: stats
+              .map((stat) => SizedBox(
+                    width: itemWidth,
+                    child: _statBox(stat.value, stat.label),
+                  ))
+              .toList(),
+        );
+      },
     );
   }
 
@@ -177,9 +227,6 @@ class ProfileScreen extends StatelessWidget {
     }
     return '${AppTheme.currency}${user.dailyBudget.toStringAsFixed(0)}';
   }
-
-  Widget _vDiv() => Container(
-      width: 1, height: 28, color: AppTheme.accentGreen.withValues(alpha: 0.4));
 
   Widget _buildBMICard(user) {
     if (user == null) return const SizedBox.shrink();
@@ -296,6 +343,103 @@ class ProfileScreen extends StatelessWidget {
     );
   }
 
+  Widget _buildProgressCard(BuildContext context) {
+    return GestureDetector(
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const ProgressDashboardScreen(),
+        ),
+      ),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              AppTheme.primaryGreen,
+              AppTheme.primaryGreen.withValues(alpha: 0.78),
+            ],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(ModernAppTheme.radiusXl),
+          boxShadow: [
+            BoxShadow(
+              color: AppTheme.primaryGreen.withValues(alpha: 0.25),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.18),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: const Icon(
+                Icons.insights_rounded,
+                color: Colors.white,
+                size: 26,
+              ),
+            ),
+            const SizedBox(width: 14),
+            const Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'My Progress',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  SizedBox(height: 3),
+                  Text(
+                    'Track calories, budget, and meal consistency',
+                    style: TextStyle(
+                      color: Colors.white70,
+                      fontSize: 12,
+                      height: 1.35,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.arrow_forward_ios,
+                color: Colors.white70, size: 16),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _settingsValueHeader(String label, String value) {
+    return Wrap(
+      alignment: WrapAlignment.spaceBetween,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      spacing: 12,
+      runSpacing: 4,
+      children: [
+        Text(label,
+            style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: AppTheme.textDark)),
+        Text(value,
+            style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: AppTheme.primaryGreen)),
+      ],
+    );
+  }
+
   Widget _buildDSSSettings(BuildContext context, user) {
     final u = user;
 
@@ -329,20 +473,9 @@ class ProfileScreen extends StatelessWidget {
           const SizedBox(height: 14),
 
           // Budget slider
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text('Daily Budget',
-                  style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: AppTheme.textDark)),
-              Text('₱${(u?.dailyBudget ?? 150).toStringAsFixed(0)}',
-                  style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      color: AppTheme.primaryGreen)),
-            ],
+          _settingsValueHeader(
+            'Daily Budget',
+            '₱${(u?.dailyBudget ?? 150).toStringAsFixed(0)}',
           ),
           SliderTheme(
             data: const SliderThemeData(
@@ -375,20 +508,9 @@ class ProfileScreen extends StatelessWidget {
           const SizedBox(height: 10),
 
           // Budget Buffer
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text('Budget Buffer',
-                  style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: AppTheme.textDark)),
-              Text('${(u?.budgetBuffer ?? 15).toStringAsFixed(0)}%',
-                  style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      color: AppTheme.primaryGreen)),
-            ],
+          _settingsValueHeader(
+            'Budget Buffer',
+            '${(u?.budgetBuffer ?? 15).toStringAsFixed(0)}%',
           ),
           SliderTheme(
             data: const SliderThemeData(
@@ -540,8 +662,14 @@ class ProfileScreen extends StatelessWidget {
                       MaterialPageRoute(
                           builder: (_) => const EditProfileScreen()))),
               const Divider(height: 1, indent: 56, color: AppTheme.divider),
-              _menuItem(Icons.trending_up_outlined, 'Progress',
-                  AppTheme.textDark, () {}),
+              _menuItem(
+                  Icons.trending_up_outlined,
+                  'Progress',
+                  AppTheme.textDark,
+                  () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => const ProgressDashboardScreen()))),
               const Divider(height: 1, indent: 56, color: AppTheme.divider),
               _menuItem(Icons.leaderboard_outlined, 'Ranking',
                   AppTheme.textDark, () {}),
@@ -589,10 +717,7 @@ class ProfileScreen extends StatelessWidget {
               Navigator.pop(context);
               await context.read<AuthProvider>().signOut();
               if (context.mounted) {
-                Navigator.pushAndRemoveUntil(
-                    context,
-                    MaterialPageRoute(builder: (_) => const SplashScreen()),
-                    (_) => false);
+                Navigator.popUntil(context, (route) => route.isFirst);
               }
             },
             style: ElevatedButton.styleFrom(
@@ -756,7 +881,7 @@ Widget _profileRankRow({
   );
 }
 
-/// Streams the signed-in user's badges with a retry button on failure.
+/// Loads the signed-in user's badges once with a retry button on failure.
 class _BadgesSection extends StatefulWidget {
   const _BadgesSection({
     required this.uid,
@@ -771,13 +896,39 @@ class _BadgesSection extends StatefulWidget {
 }
 
 class _BadgesSectionState extends State<_BadgesSection> {
-  int _retryTick = 0;
+  late Future<List<BadgeModel>> _badgesFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _badgesFuture = _loadBadges();
+  }
+
+  @override
+  void didUpdateWidget(covariant _BadgesSection oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.uid != widget.uid ||
+        oldWidget.engagementService != widget.engagementService) {
+      _badgesFuture = _loadBadges();
+    }
+  }
+
+  Future<List<BadgeModel>> _loadBadges() {
+    return widget.engagementService.getUserBadges(widget.uid).timeout(
+        const Duration(seconds: 8),
+        onTimeout: () => const <BadgeModel>[]);
+  }
+
+  void _retry() {
+    setState(() {
+      _badgesFuture = _loadBadges();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<List<BadgeModel>>(
-      key: ValueKey('badges-${widget.uid}-$_retryTick'),
-      stream: widget.engagementService.badgesStream(widget.uid),
+    return FutureBuilder<List<BadgeModel>>(
+      future: _badgesFuture,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Padding(
@@ -789,7 +940,7 @@ class _BadgesSectionState extends State<_BadgesSection> {
           return InlineErrorStateCard(
             error: snapshot.error,
             message: 'Could not load badges.',
-            onRetry: () => setState(() => _retryTick++),
+            onRetry: _retry,
           );
         }
         final badges = snapshot.data ?? const <BadgeModel>[];
@@ -822,7 +973,7 @@ class _BadgesSectionState extends State<_BadgesSection> {
   }
 }
 
-/// Streams the weekly leaderboard with a retry button on failure.
+/// Loads the weekly leaderboard once with a retry button on failure.
 class _LeaderboardSection extends StatefulWidget {
   const _LeaderboardSection({
     required this.currentUid,
@@ -837,13 +988,39 @@ class _LeaderboardSection extends StatefulWidget {
 }
 
 class _LeaderboardSectionState extends State<_LeaderboardSection> {
-  int _retryTick = 0;
+  late Future<List<WeeklyStatsModel>> _leadersFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _leadersFuture = _loadLeaders();
+  }
+
+  @override
+  void didUpdateWidget(covariant _LeaderboardSection oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.currentUid != widget.currentUid ||
+        oldWidget.engagementService != widget.engagementService) {
+      _leadersFuture = _loadLeaders();
+    }
+  }
+
+  Future<List<WeeklyStatsModel>> _loadLeaders() {
+    return widget.engagementService.getWeeklyLeaderboard().timeout(
+        const Duration(seconds: 8),
+        onTimeout: () => const <WeeklyStatsModel>[]);
+  }
+
+  void _retry() {
+    setState(() {
+      _leadersFuture = _loadLeaders();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<List<WeeklyStatsModel>>(
-      key: ValueKey('leaderboard-$_retryTick'),
-      stream: widget.engagementService.weeklyLeaderboardStream(),
+    return FutureBuilder<List<WeeklyStatsModel>>(
+      future: _leadersFuture,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Padding(
@@ -855,7 +1032,7 @@ class _LeaderboardSectionState extends State<_LeaderboardSection> {
           return InlineErrorStateCard(
             error: snapshot.error,
             message: 'Could not load weekly rankings.',
-            onRetry: () => setState(() => _retryTick++),
+            onRetry: _retry,
           );
         }
         final leaders = snapshot.data ?? const <WeeklyStatsModel>[];

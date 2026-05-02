@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 enum MealType { breakfast, lunch, dinner, snack }
+
 enum MealStatus { logged, ready, upcoming }
 
 class MealModel {
@@ -44,18 +45,25 @@ class MealModel {
 
   String get typeLabel {
     switch (type) {
-      case MealType.breakfast: return 'Breakfast';
-      case MealType.lunch: return 'Lunch';
-      case MealType.dinner: return 'Dinner';
-      case MealType.snack: return 'Snack';
+      case MealType.breakfast:
+        return 'Breakfast';
+      case MealType.lunch:
+        return 'Lunch';
+      case MealType.dinner:
+        return 'Dinner';
+      case MealType.snack:
+        return 'Snack';
     }
   }
 
   String get statusLabel {
     switch (status) {
-      case MealStatus.logged: return 'Logged';
-      case MealStatus.ready: return 'Ready to log';
-      case MealStatus.upcoming: return 'Upcoming';
+      case MealStatus.logged:
+        return 'Logged';
+      case MealStatus.ready:
+        return 'Ready to log';
+      case MealStatus.upcoming:
+        return 'Upcoming';
     }
   }
 
@@ -112,6 +120,7 @@ class MealModel {
   MealModel copyWith({
     MealStatus? status,
     DateTime? loggedAt,
+    int? calories,
     String? recipe,
     List<String>? cookingSteps,
     String? imageUrl,
@@ -122,7 +131,7 @@ class MealModel {
         name: name,
         type: type,
         price: price,
-        calories: calories,
+        calories: calories ?? this.calories,
         status: status ?? this.status,
         date: date,
         loggedAt: loggedAt ?? this.loggedAt,

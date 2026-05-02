@@ -1,11 +1,16 @@
 import 'dart:async';
+import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../services/auth_service.dart';
 import '../services/firestore_service.dart';
 import '../models/user_model.dart';
 
-enum AuthStatus { unknown, authenticated, unauthenticated }
+enum AuthStatus { unknown, authenticated, unauthenticated, profileLoadFailed }
+
+const String _profileLoadErrorMessage =
+    'We could not load your profile. Please check your connection and try again.';
+const Duration _profileLoadTimeout = Duration(seconds: 10);
 
 class AuthProvider extends ChangeNotifier {
   final AuthService _authService = AuthService();
@@ -17,6 +22,7 @@ class AuthProvider extends ChangeNotifier {
   bool _loading = false;
   bool _isNewUser = false;
   StreamSubscription<User?>? _authSubscription;
+  int _authChangeVersion = 0;
 
   AuthStatus get status => _status;
   UserModel? get userModel => _userModel;
@@ -36,35 +42,23 @@ class AuthProvider extends ChangeNotifier {
   }
 
   Future<void> _onAuthChanged(User? user) async {
+    final version = ++_authChangeVersion;
     if (user == null) {
       _status = AuthStatus.unauthenticated;
       _userModel = null;
-    } else {
-      final existing = await _firestoreService.getUser(user.uid);
-      if (existing != null) {
-        _userModel = existing;
-      } else {
-        // Auth is valid but Firestore profile is missing (first login / failed seed).
-        // Create a minimal user profile so the app can proceed.
-        try {
-          final newUser = UserModel(
-            uid: user.uid,
-            name: user.displayName ?? 'User',
-            email: user.email ?? '',
-            photoUrl: user.photoURL,
-            location: 'Davao City, Philippines',
-          );
-          await _firestoreService.createUser(newUser);
-          _userModel = newUser;
-        } catch (e) {
-          // If Firestore is still blocked (rules/config), keep auth state but surface error.
-          _userModel = null;
-          _error = e.toString();
-        }
-      }
-      _status = AuthStatus.authenticated;
+      _error = null;
+      _loading = false;
+      _isNewUser = false;
+      notifyListeners();
+      return;
     }
+
+    _status = AuthStatus.unknown;
+    _userModel = null;
+    _error = null;
+    _loading = false;
     notifyListeners();
+    await _resolveSignedInUser(user, version);
   }
 
   Future<bool> signUpWithEmail({
@@ -73,6 +67,7 @@ class AuthProvider extends ChangeNotifier {
     required String password,
     String location = 'Davao City, Philippines',
   }) async {
+    _error = null;
     _setLoading(true);
     try {
       _userModel = await _authService.signUpWithEmail(
@@ -81,13 +76,15 @@ class AuthProvider extends ChangeNotifier {
         password: password,
         location: location,
       );
+      _status = AuthStatus.authenticated;
+      _error = null;
       _isNewUser = true;
       _setLoading(false);
       return true;
     } catch (e) {
-      _error = e.toString();
+      _error = _messageForError(e);
       _setLoading(false);
-      return false;
+      return firebaseUser != null;
     }
   }
 
@@ -95,23 +92,27 @@ class AuthProvider extends ChangeNotifier {
     required String email,
     required String password,
   }) async {
+    _error = null;
     _setLoading(true);
     try {
       _userModel = await _authService.signInWithEmail(
         email: email,
         password: password,
       );
+      _status = AuthStatus.authenticated;
+      _error = null;
       _isNewUser = false;
       _setLoading(false);
       return true;
     } catch (e) {
-      _error = e.toString();
+      _error = _messageForError(e);
       _setLoading(false);
-      return false;
+      return firebaseUser != null;
     }
   }
 
   Future<bool> signInWithGoogle() async {
+    _error = null;
     _setLoading(true);
     try {
       final user = await _authService.signInWithGoogle();
@@ -120,34 +121,62 @@ class AuthProvider extends ChangeNotifier {
         return false;
       }
       _userModel = user;
+      _status = AuthStatus.authenticated;
+      _error = null;
       _isNewUser = false;
       _setLoading(false);
       return true;
     } catch (e) {
-      _error = e.toString();
+      _error = _messageForError(e);
       _setLoading(false);
-      return false;
+      return firebaseUser != null;
     }
   }
 
   Future<bool> resetPassword(String email) async {
+    _error = null;
     _setLoading(true);
     try {
       await _authService.resetPassword(email);
+      _error = null;
       _setLoading(false);
       return true;
     } catch (e) {
-      _error = e.toString();
+      _error = _messageForError(e);
       _setLoading(false);
       return false;
     }
   }
 
   Future<void> signOut() async {
+    _authChangeVersion++;
     await _authService.signOut();
     _userModel = null;
     _status = AuthStatus.unauthenticated;
+    _error = null;
+    _loading = false;
+    _isNewUser = false;
     notifyListeners();
+  }
+
+  Future<void> retryProfileLoad() async {
+    final user = firebaseUser;
+    if (user == null) {
+      _status = AuthStatus.unauthenticated;
+      _userModel = null;
+      _error = null;
+      _loading = false;
+      notifyListeners();
+      return;
+    }
+
+    final version = ++_authChangeVersion;
+    _status = AuthStatus.unknown;
+    _userModel = null;
+    _error = null;
+    _loading = false;
+    notifyListeners();
+    await _resolveSignedInUser(user, version);
   }
 
   Future<void> updateOnboarding({
@@ -276,6 +305,67 @@ class AuthProvider extends ChangeNotifier {
   void clearError() {
     _error = null;
     notifyListeners();
+  }
+
+  Future<void> _resolveSignedInUser(User user, int version) async {
+    try {
+      if (user.uid.trim().isEmpty) {
+        throw StateError('Firebase user had an empty uid during profile load.');
+      }
+
+      final existing = await _firestoreService
+          .getUser(user.uid)
+          .timeout(_profileLoadTimeout);
+      if (!_isCurrentAuthChange(version, user.uid)) return;
+
+      if (existing != null) {
+        if (existing.uid.trim().isEmpty) {
+          throw StateError('Loaded profile had an empty uid.');
+        }
+        _userModel = existing;
+      } else {
+        final newUser = UserModel(
+          uid: user.uid,
+          name: user.displayName ?? 'User',
+          email: user.email ?? '',
+          photoUrl: user.photoURL,
+          location: 'Davao City, Philippines',
+        );
+        await _firestoreService
+            .createUser(newUser)
+            .timeout(_profileLoadTimeout);
+        if (!_isCurrentAuthChange(version, user.uid)) return;
+        _userModel = newUser;
+      }
+
+      _status = AuthStatus.authenticated;
+      _error = null;
+      _loading = false;
+      notifyListeners();
+    } catch (e, st) {
+      if (!_isCurrentAuthChange(version, user.uid)) return;
+      developer.log(
+        'Failed to load signed-in user profile',
+        error: e,
+        stackTrace: st,
+        level: 1000,
+      );
+      _userModel = null;
+      _status = AuthStatus.profileLoadFailed;
+      _error = _profileLoadErrorMessage;
+      _loading = false;
+      notifyListeners();
+    }
+  }
+
+  bool _isCurrentAuthChange(int version, String uid) {
+    return version == _authChangeVersion &&
+        _authService.currentUser?.uid == uid &&
+        _authService.currentUser != null;
+  }
+
+  String _messageForError(Object error) {
+    return error.toString().replaceFirst(RegExp(r'^Exception:\s*'), '');
   }
 
   void _setLoading(bool v) {

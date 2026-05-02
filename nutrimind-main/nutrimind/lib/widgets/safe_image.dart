@@ -50,12 +50,12 @@ class SafeAvatar extends StatelessWidget {
   }
 }
 
-/// Shows a network image with an icon-gradient fallback.
+/// Shows a local asset or network image with an icon-gradient fallback.
 /// Never calls NetworkImage with a null or empty URL.
 ///
-/// When [mealName] is provided, tries to resolve a bundled local asset
-/// via [FoodImageResolver] before falling back to [imageUrl] or the
-/// placeholder icon.
+/// Local food asset paths in [imageUrl] win first. When [mealName] is
+/// provided, unresolved meals try [FoodImageResolver] before falling back to a
+/// network URL or the placeholder icon.
 class SafeFoodImage extends StatelessWidget {
   const SafeFoodImage({
     super.key,
@@ -87,23 +87,41 @@ class SafeFoodImage extends StatelessWidget {
   Widget build(BuildContext context) {
     final br = borderRadius ?? BorderRadius.circular(12);
 
-    // 1. Try local asset from meal name
-    final localAsset = FoodImageResolver.resolve(mealName);
-    if (localAsset != null) {
-      return ClipRRect(
-        borderRadius: br,
-        child: Image.asset(
-          localAsset,
-          width: width,
-          height: height,
-          fit: fit,
-          errorBuilder: (_, __, ___) => _tryNetwork(br),
-        ),
-      );
+    // 1. Render saved bundled local assets first.
+    final url = _safeImageUrl;
+    if (FoodImageResolver.isLocalFoodAsset(url)) {
+      return _assetImage(url!, br, fallback: () => _tryResolvedOrNetwork(br));
     }
 
-    // 2. Fall back to network image or placeholder
+    return _tryResolvedOrNetwork(br);
+  }
+
+  Widget _tryResolvedOrNetwork(BorderRadius br) {
+    // 2. Try local asset from meal name.
+    final localAsset = FoodImageResolver.resolve(mealName);
+    if (localAsset != null) {
+      return _assetImage(localAsset, br, fallback: () => _tryNetwork(br));
+    }
+
+    // 3. Fall back to network image or placeholder.
     return _tryNetwork(br);
+  }
+
+  Widget _assetImage(
+    String assetPath,
+    BorderRadius br, {
+    required Widget Function() fallback,
+  }) {
+    return ClipRRect(
+      borderRadius: br,
+      child: Image.asset(
+        assetPath,
+        width: width,
+        height: height,
+        fit: fit,
+        errorBuilder: (_, __, ___) => fallback(),
+      ),
+    );
   }
 
   Widget _tryNetwork(BorderRadius br) {

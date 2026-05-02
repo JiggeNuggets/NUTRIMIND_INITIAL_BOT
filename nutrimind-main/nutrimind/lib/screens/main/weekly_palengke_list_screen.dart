@@ -76,7 +76,16 @@ class _WeeklyPalengkeListScreenState extends State<WeeklyPalengkeListScreen> {
       appBar: AppBar(
         backgroundColor: ModernAppTheme.backgroundNeutral,
         surfaceTintColor: Colors.transparent,
-        title: const Text('Weekly Grocery & Palengke List'),
+        title: LayoutBuilder(
+          builder: (context, constraints) {
+            final compact = constraints.maxWidth < 280;
+            return Text(
+              compact ? 'Palengke List' : 'Weekly Palengke List',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            );
+          },
+        ),
       ),
       body: Column(
         children: [
@@ -114,8 +123,7 @@ class _WeeklyPalengkeListScreenState extends State<WeeklyPalengkeListScreen> {
                   return _buildStateMessage(
                     icon: Icons.calendar_month_outlined,
                     title: 'No weekly plan yet.',
-                    message:
-                        'Generate a Weekly Plan first.',
+                    message: 'Generate a Weekly Plan first.',
                     action: OutlinedButton.icon(
                       onPressed: () => Navigator.of(context).pop(),
                       icon: const Icon(Icons.arrow_back, size: 18),
@@ -220,7 +228,6 @@ class _WeeklyPalengkeListScreenState extends State<WeeklyPalengkeListScreen> {
     final boughtCount = items.where((item) => item.isBought).length;
     final totalCost = _palengkeService.calculateTotalCost();
     final progress = items.isEmpty ? 0.0 : boughtCount / items.length;
-    final configError = _palengkeService.marketConfigError;
     final persistenceError = _palengkeService.persistenceError;
 
     return ListView(
@@ -253,59 +260,25 @@ class _WeeklyPalengkeListScreenState extends State<WeeklyPalengkeListScreen> {
             width: double.infinity,
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
             decoration: BoxDecoration(
-              color: AppTheme.orangeAccent.withValues(alpha: 0.10),
+              color: AppTheme.primaryGreen.withValues(alpha: 0.08),
               borderRadius: BorderRadius.circular(10),
               border: Border.all(
-                color: AppTheme.orangeAccent.withValues(alpha: 0.30),
+                color: AppTheme.primaryGreen.withValues(alpha: 0.20),
               ),
             ),
             child: const Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Icon(Icons.price_change_outlined,
-                    size: 15, color: AppTheme.orangeAccent),
+                    size: 15, color: AppTheme.primaryGreen),
                 SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    'Prices shown are rough estimates based on local Davao market averages — not live market data. Use them as a budget guide when shopping.',
+                    'Using estimated market prices for now. Use them as a budget guide when shopping.',
                     style: TextStyle(
-                      color: AppTheme.orangeAccent,
+                      color: AppTheme.primaryGreen,
                       fontSize: 12,
                       height: 1.4,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-        // Market config load error
-        if (configError != null) ...[
-          const SizedBox(height: 8),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-            decoration: BoxDecoration(
-              color: AppTheme.orangeAccent.withValues(alpha: 0.08),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(
-                color: AppTheme.orangeAccent.withValues(alpha: 0.25),
-              ),
-            ),
-            child: const Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(Icons.warning_amber_outlined,
-                    size: 15, color: AppTheme.orangeAccent),
-                SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'Market config could not be loaded, so estimated prices are shown.',
-                    style: TextStyle(
-                      color: AppTheme.orangeAccent,
-                      fontSize: 12,
-                      height: 1.35,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -335,7 +308,7 @@ class _WeeklyPalengkeListScreenState extends State<WeeklyPalengkeListScreen> {
                 SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    'Palengke List sync is unavailable. Changes may not persist until Firestore config is ready.',
+                    'Palengke List sync is temporarily unavailable. You can keep using this list; some checked-item changes may not persist yet.',
                     style: TextStyle(
                       color: AppTheme.orangeAccent,
                       fontSize: 12,
@@ -487,27 +460,25 @@ class _WeeklyPalengkeListScreenState extends State<WeeklyPalengkeListScreen> {
   Widget _buildActionButtons() {
     return Column(
       children: [
-        Row(
-          children: [
-            Expanded(
-              child: ElevatedButton.icon(
-                onPressed: _savingListState
-                    ? null
-                    : () => _runListMutation(
-                          () => _palengkeService.markAllAsBought(
-                            uid: _uid,
-                            weekId: _weekId,
-                          ),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final compact = constraints.maxWidth < 340;
+            final markAllButton = ElevatedButton.icon(
+              onPressed: _savingListState
+                  ? null
+                  : () => _runListMutation(
+                        () => _palengkeService.markAllAsBought(
+                          uid: _uid,
+                          weekId: _weekId,
                         ),
-                icon: const Icon(Icons.done_all, size: 18),
-                label: const Text('Mark All as Bought'),
-                style: ElevatedButton.styleFrom(
-                  minimumSize: const Size(0, 48),
-                ),
+                      ),
+              icon: const Icon(Icons.done_all, size: 18),
+              label: const Text('Mark All as Bought'),
+              style: ElevatedButton.styleFrom(
+                minimumSize: const Size(0, 48),
               ),
-            ),
-            const SizedBox(width: 10),
-            OutlinedButton.icon(
+            );
+            final resetButton = OutlinedButton.icon(
               onPressed: _savingListState
                   ? null
                   : () => _runListMutation(
@@ -521,8 +492,27 @@ class _WeeklyPalengkeListScreenState extends State<WeeklyPalengkeListScreen> {
               style: OutlinedButton.styleFrom(
                 minimumSize: const Size(110, 48),
               ),
-            ),
-          ],
+            );
+
+            if (compact) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  markAllButton,
+                  const SizedBox(height: 10),
+                  resetButton,
+                ],
+              );
+            }
+
+            return Row(
+              children: [
+                Expanded(child: markAllButton),
+                const SizedBox(width: 10),
+                resetButton,
+              ],
+            );
+          },
         ),
         const SizedBox(height: 10),
         SizedBox(
